@@ -17,3 +17,15 @@ Added in v0.5:
 
 Important:
 The older prototype fields Service Quote, Court, Judge, and dedicated Sub-Case metadata do not yet have dedicated CaseGO database columns. v0.5 does not fake persistence for unsupported fields. Sub-Case text is currently used as the case title. The next schema/UI pass can add the remaining legal matter fields deliberately.
+
+
+CaseGO v0.5.3 SETTINGS / USER MANAGEMENT
+- Rebuilt Settings as cloud-first UI.
+- My Profile for all users: name, title, phone/ext, weather location, timezone, theme and notification preferences.
+- Profile changes save through update_my_casego_profile RPC and user_preferences.
+- Firm Information is collapsed by default, prefilled from the active firm, and editable only by firm admins/system admin support mode.
+- User Management and role overview are admin-only.
+- Current admin account is protected from self-demotion/deactivation in the interface.
+- Removed legacy Security Code and desktop Backup/Restore settings.
+- + Add User opens the secure invitation workflow shell; SEND INVITE intentionally remains disabled until a server-side invite function is connected. No service-role key is placed in the browser.
+- Theme preference now syncs from the authenticated profile.

@@ -56,7 +56,7 @@
     if(!session?.user) return null;
     const { data: profile, error: profileError } = await client
       .from('profiles')
-      .select('id, firm_id, first_name, last_name, email, platform_role, active')
+      .select('id, firm_id, first_name, last_name, email, platform_role, active, job_title, phone, extension, profile_image_url, weather_location, timezone, theme_preference')
       .eq('id', session.user.id)
       .single();
     if(profileError) throw profileError;
