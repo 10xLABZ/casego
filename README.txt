@@ -29,3 +29,9 @@ CaseGO v0.5.3 SETTINGS / USER MANAGEMENT
 - Removed legacy Security Code and desktop Backup/Restore settings.
 - + Add User opens the secure invitation workflow shell; SEND INVITE intentionally remains disabled until a server-side invite function is connected. No service-role key is placed in the browser.
 - Theme preference now syncs from the authenticated profile.
+
+
+CaseGO v0.5.4 changes:
+- Add Client now supports Cell/Home/Work/Other phone types, extensions, Primary selection, and additional phone rows.
+- Phone numbers save to client_phones; the primary number is mirrored to clients.phone for compatibility with existing list/profile views.
+- Add Firm User wording changed from invitation to direct account creation with temporary password. Secure server-side creation remains to be wired before CREATE USER can be enabled.
