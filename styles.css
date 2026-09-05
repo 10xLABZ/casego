@@ -457,3 +457,115 @@ body.casego-dark .cal-cell{background:#0f263a;color:#edf5fb;border-color:#284159
 .casego-team-option{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--line);border-radius:7px}
 .casego-team-option input{width:auto}
 @media(max-width:720px){.casego-team-list{grid-template-columns:1fr}}
+
+/* =========================================================
+   CaseGO v0.5.1 — fixed application shell + complete dark mode
+   The navigation chrome stays fixed; only page content scrolls.
+   ========================================================= */
+@media (min-width:721px){
+  html,body{height:100%;overflow:hidden}
+  body{min-height:100vh}
+  .app{height:100vh;min-height:0;overflow:hidden}
+  .sidebar{position:relative;top:auto;height:100vh;min-height:0;overflow:hidden;flex:0 0 auto}
+  .main{height:100vh;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:var(--cream)}
+  .topbar{position:relative;top:auto;flex:0 0 70px;z-index:12}
+  .platform-support-banner{flex:0 0 auto}
+  .content{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+  .footer{flex:0 0 auto;margin-top:0}
+  .casego-rail{position:relative;top:auto;height:100vh;min-height:0;overflow:hidden;flex:0 0 auto;padding-bottom:14px}
+  .casego-mode-toggle{margin-top:auto!important;margin-bottom:8px!important;transform:translateY(-2px);flex:0 0 auto}
+}
+
+/* Current-state image: LIGHT image in light mode, DARK image in dark mode. */
+.casego-mode-toggle{cursor:pointer}
+.casego-mode-toggle img{filter:none!important}
+
+/* Complete dark theme — page canvas, chrome, cards, forms, tables and communication views. */
+body.casego-dark{
+  --cream:#07131f;
+  --card:#0d2134;
+  --ink:#edf5fb;
+  --muted:#9fb0bf;
+  --line:#284159;
+  --shadow:0 8px 26px rgba(0,0,0,.32);
+  background:#07131f;
+  color:var(--ink)
+}
+body.casego-dark .main,
+body.casego-dark .content,
+body.casego-dark .attorney-dashboard{background:#07131f;color:var(--ink)}
+body.casego-dark .topbar{background:rgba(8,25,40,.98);color:#edf5fb;border-bottom-color:#284159;box-shadow:0 2px 12px rgba(0,0,0,.26)}
+body.casego-dark .top-user{border-left-color:#284159}
+body.casego-dark .top-user-copy small,
+body.casego-dark .attorney-welcome p,
+body.casego-dark .welcome-summary,
+body.casego-dark .cg-sub,
+body.casego-dark .muted-mini,
+body.casego-dark .page-head p,
+body.casego-dark .sub{color:#9fb0bf}
+body.casego-dark .notification-bell{color:#e9f3fb}
+body.casego-dark .search input,
+body.casego-dark .field input,
+body.casego-dark .field select,
+body.casego-dark .field textarea,
+body.casego-dark .comm-composer input,
+body.casego-dark .platform-search{background:#0a1c2d!important;color:#edf5fb!important;border-color:#35516a!important}
+body.casego-dark input::placeholder,
+body.casego-dark textarea::placeholder{color:#7890a5}
+body.casego-dark .panel,
+body.casego-dark .frame-group,
+body.casego-dark .form-card,
+body.casego-dark .stat,
+body.casego-dark .attorney-kpi,
+body.casego-dark .summary-mini,
+body.casego-dark .kpi,
+body.casego-dark .casego-subsection,
+body.casego-dark .past-due-summary-card,
+body.casego-dark .integration-note{background:#0d2134!important;color:#edf5fb!important;border-color:#284159!important}
+body.casego-dark .panel-head{background:#10283d;color:#e8f2f9;border-bottom-color:#284159}
+body.casego-dark .attorney-kpi span,
+body.casego-dark .attorney-kpi small{color:#9fb0bf}
+body.casego-dark .cg-row,
+body.casego-dark .cg-attention,
+body.casego-dark .dash-list-row{border-bottom-color:#284159}
+body.casego-dark table{color:#edf5fb}
+body.casego-dark th{background:#10283d!important;color:#cbd9e4;border-color:#284159}
+body.casego-dark td{background:#0d2134;color:#edf5fb;border-color:#284159}
+body.casego-dark tr:hover td{background:#112a40}
+body.casego-dark .total-bar{background:#10283d!important;color:#edf5fb;border-color:#284159}
+body.casego-dark .tab{background:#0d2134!important;color:#d8e6f0!important;border-color:#35516a!important}
+body.casego-dark .tab.active{background:#0878ff!important;color:#fff!important;border-color:#0878ff!important}
+body.casego-dark .btn-secondary{background:#10283d;color:#edf5fb;border-color:#35516a}
+body.casego-dark .btn-danger{background:#32191c;color:#ffb9b9;border-color:#6a3438}
+body.casego-dark .empty{color:#9fb0bf}
+body.casego-dark .empty strong{color:#edf5fb}
+body.casego-dark .calendar-grid,
+body.casego-dark .cal-cell{background:#0d2134;color:#edf5fb}
+body.casego-dark .cal-cell{border-color:#284159}
+body.casego-dark .cal-head div{color:#b4c4d2;border-color:#284159}
+body.casego-dark .cal-event{background:#163b59;color:#bfe3ff}
+body.casego-dark .cal-event.legal{background:#423517;color:#f3d88f}
+body.casego-dark .timeline-item{background:#10283d;color:#edf5fb}
+body.casego-dark .file-note{background:#10283d;color:#b9d9f1;border-color:#315775}
+body.casego-dark .message-thread{background:linear-gradient(180deg,#081725,#0b1c2c)}
+body.casego-dark .bubble{background:#10283d;color:#edf5fb;border-color:#31506a}
+body.casego-dark .bubble.me{background:#0b7cff;color:#fff;border-color:#0b7cff}
+body.casego-dark .comm-contact{color:#dbe8f2}
+body.casego-dark .comm-contact:hover,
+body.casego-dark .comm-contact.active{background:#12314c;color:#70c2ff}
+body.casego-dark .comm-composer{border-color:#284159;background:#0d2134}
+body.casego-dark .integration-note{color:#a9c4d8}
+body.casego-dark .platform-support-banner{background:#302814;color:#f2d98b;border-color:#5c4b20}
+body.casego-dark .footer{background:#03101d;color:#91bde7;border-top:1px solid #18334d}
+
+/* Keep the rail controls inside the viewport on shorter desktop windows. */
+@media (min-width:721px) and (max-height:820px){
+  .casego-rail{padding-top:6px;padding-bottom:8px;gap:4px}
+  .rail-group{gap:3px}
+  .casego-rail a{width:36px;height:36px;font-size:16px}
+  .rail-divider{margin:1px 0 2px}
+  .casego-mode-toggle{width:48px!important;margin-bottom:4px!important}
+  .casego-mode-toggle img{width:48px!important}
+  .nav a{height:42px}
+  .brand{height:82px}
+}
