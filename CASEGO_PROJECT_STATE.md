@@ -1,5 +1,13 @@
 # CaseGO Project State
 
+## Latest: v0.6.2, 2026-09-08
+User reported Add Case worked as System Admin but failed as firm Owner/Admin.
+Reproduced against the recovered SQL: INSERT RETURNING fails the restrictive
+SELECT policy because STABLE can_access_case(id) cannot see the newly inserted
+case yet. v0.6.2 separates insert and readback, retaining existing RLS.
+No SQL migration required. See CURRENT_BUILD.md and CASE_CREATION_FIX.md.
+v0.6.1 Add Client schema-contract corrections below remain unchanged.
+
 CaseGO is a multi-tenant legal-practice SaaS by 10xLABZ. The existing Rodriguez Case Management app is reference/chassis only; CaseGO has its own cloud architecture and visual identity.
 
 ## Architecture

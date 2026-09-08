@@ -1,4 +1,4 @@
-/* CaseGO Cloud v0.6.1 SAFE CORE REBUILD
+/* CaseGO Cloud v0.6.2 CASE CREATION FIX
    Supabase is the ONLY application data source.
    No localStorage, SQLite, pywebview, demo records, seed records, or fake counters. */
 (function(){
@@ -93,9 +93,119 @@ async function firmUsers(){const f=firmId();if(!f)return[];const {data,error}=aw
 async function loadTeamPicker(selectedPrimary='', selectedTeam=[]){const primary=$('primaryAttorney'),list=$('caseTeamList');if(!primary&&!list)return;const users=await firmUsers();if(primary){primary.innerHTML='<option value="">Select attorney</option>'+users.map(u=>`<option value="${u.id}">${esc(nameOf(u))}</option>`).join('');primary.value=selectedPrimary||'';}if(list){list.innerHTML=users.map(u=>`<label class="casego-team-option"><input type="checkbox" value="${u.id}" ${selectedTeam.includes(u.id)?'checked':''}><span>${esc(nameOf(u))}</span></label>`).join('')||'<span class="sub">No active firm users yet.</span>';}}
 function selectedTeam(){return [...document.querySelectorAll('#caseTeamList input:checked')].map(x=>x.value);}
 async function saveTeam(caseId, primary){const ids=[...new Set(selectedTeam().concat(primary?[primary]:[]))];const {error:delErr}=await sb().from('case_team_members').delete().eq('case_id',caseId).eq('firm_id',firmId());if(delErr)throw delErr;if(ids.length){const {error}=await sb().from('case_team_members').insert(ids.map(id=>({firm_id:firmId(),case_id:caseId,user_id:id,is_primary:id===primary})));if(error)throw error;}}
-async function createCase(clientId,fd){const type=String(fd.get('caseType')||'').trim();if(!type)throw new Error('Case Type is required.');const primary=String(fd.get('primaryAttorney')||'')||null;const current=window.casegoProfile;if(!primary && !window.casegoIsFirmAdmin && current?.firm_id===firmId()){}const payload={firm_id:firmId(),client_id:clientId,case_number:String(fd.get('caseNumber')||'').trim()||null,title:String(fd.get('subCaseType')||'').trim()||type,case_type:type,case_status:String(fd.get('caseStatus')||'active').toLowerCase()||'active',description:String(fd.get('caseNotes')||'').trim()||null,assigned_attorney_id:primary||(window.casegoIsFirmAdmin?null:current?.id),access_scope:String(fd.get('accessScope')||'team'),created_by:current?.id};const {data,error}=await sb().from('cases').insert(payload).select().single();if(error)throw error;await saveTeam(data.id,payload.assigned_attorney_id);const events=[];const court=String(fd.get('nextCourtDate')||''),courtTime=String(fd.get('courtTime')||'').trim();if(court)events.push({firm_id:firmId(),client_id:clientId,case_id:data.id,event_type:'court',title:String(fd.get('nextCourtDateNote')||'').trim()||'Court Date',start_at:court+'T'+(courtTime||'09:00')+':00',all_day:!courtTime,created_by:current?.id});const legal=String(fd.get('nextLegalDate')||'');if(legal)events.push({firm_id:firmId(),client_id:clientId,case_id:data.id,event_type:'legal_deadline',title:String(fd.get('nextLegalDateNote')||'').trim()||'Legal Deadline',start_at:legal+'T09:00:00',all_day:true,created_by:current?.id});if(events.length){const {error:e}=await sb().from('calendar_events').insert(events);if(e)throw e;}return data;}
+function caseSaveError(error,stage,id,uncertain=false){
+ const detail=error?.message||String(error);
+ const message=uncertain
+  ? 'The save could not be confirmed. Open this client’s cases before trying again. '+detail
+  : 'The case was saved, but '+stage+' could not finish. Open the saved case to review it. '+detail;
+ const result=new Error(message);
+ result.caseId=id;
+ result.caseSaveUncertain=uncertain;
+ result.cause=error;
+ return result;
+}
+async function createCase(clientId,fd){
+ const type=String(fd.get('caseType')||'').trim();
+ if(!type)throw new Error('Case Type is required.');
+ const current=window.casegoProfile, effectiveFirm=firmId();
+ if(!current?.id||!effectiveFirm)throw new Error('Your firm session is not ready. Reload this page and try again.');
+ const primary=String(fd.get('primaryAttorney')||'')||null;
+ const id=window.crypto.randomUUID();
+ const payload={
+  id,firm_id:effectiveFirm,client_id:clientId,
+  case_number:String(fd.get('caseNumber')||'').trim()||null,
+  title:String(fd.get('subCaseType')||'').trim()||type,
+  case_type:type,
+  case_status:String(fd.get('caseStatus')||'active').toLowerCase()||'active',
+  description:String(fd.get('caseNotes')||'').trim()||null,
+  assigned_attorney_id:primary||(window.casegoIsFirmAdmin?null:current.id),
+  access_scope:String(fd.get('accessScope')||'team'),
+  created_by:current.id
+ };
+ // Do not chain select() onto this insert. The recovered SELECT policy calls
+ // STABLE can_access_case(id), which cannot see a new row in INSERT RETURNING.
+ // A separate request reads the committed row under the SAME existing RLS.
+ let response;
+ try{response=await sb().from('cases').insert(payload);}
+ catch(error){throw caseSaveError(error,'saving',id,true);}
+ if(response.error){
+  // Postgres rejection is definitive; a transport/gateway error may arrive
+  // after a commit. Do not let an uncertain result create a second case.
+  if(/^[0-9A-Z]{5}$/.test(response.error.code||'')&&!String(response.error.code).startsWith('08'))throw response.error;
+  throw caseSaveError(response.error,'saving',id,true);
+ }
+ let stage='loading the saved case';
+ try{
+  const {data,error}=await sb().from('cases').select('id').eq('id',id).eq('firm_id',effectiveFirm).single();
+  if(error)throw error;
+  if(!data?.id)throw new Error('The saved case could not be read.');
+  stage='saving the case team';
+  await saveTeam(id,payload.assigned_attorney_id);
+  stage='saving the court or legal dates';
+  const events=[];
+  const court=String(fd.get('nextCourtDate')||''),courtTime=String(fd.get('courtTime')||'').trim();
+  if(court)events.push({firm_id:effectiveFirm,client_id:clientId,case_id:id,event_type:'court',title:String(fd.get('nextCourtDateNote')||'').trim()||'Court Date',start_at:court+'T'+(courtTime||'09:00')+':00',all_day:!courtTime,created_by:current.id});
+  const legal=String(fd.get('nextLegalDate')||'');
+  if(legal)events.push({firm_id:effectiveFirm,client_id:clientId,case_id:id,event_type:'legal_deadline',title:String(fd.get('nextLegalDateNote')||'').trim()||'Legal Deadline',start_at:legal+'T09:00:00',all_day:true,created_by:current.id});
+  if(events.length){const {error}=await sb().from('calendar_events').insert(events);if(error)throw error;}
+  return data;
+ }catch(error){throw caseSaveError(error,stage,id);}
+}
 
-async function bootAddCase(){if(document.body.dataset.page!=='add-case')return;const clientId=q('clientId');if(!clientId){alert('Choose a client before creating a case.');location.href='clients.html';return;}const {data:c,error}=await sb().from('clients').select('*').eq('id',clientId).eq('firm_id',firmId()).single();if(error)throw error;if($('caseClientName'))$('caseClientName').textContent=nameOf(c);await loadTeamPicker();const f=$('addCaseForm');if($('cancelAddCase'))$('cancelAddCase').onclick=()=>location.href='client-profile.html?id='+encodeURIComponent(clientId);if(f)f.onsubmit=async e=>{e.preventDefault();try{await createCase(clientId,new FormData(f));location.href='client-profile.html?id='+encodeURIComponent(clientId);}catch(err){alert(err.message);}};}
+async function bootAddCase(){
+ if(document.body.dataset.page!=='add-case')return;
+ const clientId=q('clientId');
+ if(!clientId){alert('Choose a client before creating a case.');location.href='clients.html';return;}
+ const f=$('addCaseForm');
+ if(!f)return;
+ const submit=f.querySelector('button[type="submit"],button:not([type])');
+ const originalLabel=submit?.textContent||'Create Case';
+ let ready=false,saving=false,saved=false;
+ if(submit)submit.disabled=true;
+ const profileUrl='client-profile.html?id='+encodeURIComponent(clientId);
+ const cancel=$('cancelAddCase');
+ if(cancel)cancel.onclick=()=>{if(!saving)location.href=profileUrl;};
+ f.onsubmit=async e=>{
+  e.preventDefault();
+  if(!ready||saving||saved)return;
+  saving=true;
+  if(submit){submit.disabled=true;submit.textContent='Saving…';}
+  if(cancel)cancel.disabled=true;
+  try{
+   await createCase(clientId,new FormData(f));
+   saved=true;
+   location.href=profileUrl;
+  }catch(err){
+   console.error('CaseGO case creation failed',err);
+   if(err.caseId){
+    saved=true;
+    const notice=document.createElement('div');
+    notice.setAttribute('role','alert');
+    notice.className='case-save-notice';
+    const message=document.createElement('p');
+    message.textContent=err.message;
+    const link=document.createElement('a');
+    link.className='btn btn-secondary';
+    link.href=err.caseSaveUncertain?profileUrl:'case-detail.html?id='+encodeURIComponent(err.caseId);
+    link.textContent=err.caseSaveUncertain?'View client’s cases':'Open saved case';
+    notice.append(message,link);
+    f.appendChild(notice);
+   }
+   alert(err.message||'The case could not be saved.');
+  }finally{
+   saving=false;
+   if(submit){submit.disabled=saved;submit.textContent=saved?'Review saved case':originalLabel;}
+   if(cancel)cancel.disabled=false;
+  }
+ };
+ const {data:c,error}=await sb().from('clients').select('*').eq('id',clientId).eq('firm_id',firmId()).single();
+ if(error)throw error;
+ if($('caseClientName'))$('caseClientName').textContent=nameOf(c);
+ await loadTeamPicker();
+ ready=true;
+ if(submit)submit.disabled=false;
+}
+
 
 async function deleteClientRecord(id){if(!confirm('Delete this client? This will permanently delete the client and linked CaseGO records. This cannot be undone.'))return;const {error}=await sb().from('clients').delete().eq('id',id).eq('firm_id',firmId());if(error){alert(error.message);return;}location.href='clients.html';}
 

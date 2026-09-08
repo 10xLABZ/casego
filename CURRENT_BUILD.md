@@ -1,26 +1,45 @@
 # CaseGO Current Build
-
-Build: v0.6.1 SAFE CORE REBUILD
+Build: v0.6.2 CASE CREATION FIX
 Date: 2026-09-08
+Base: CaseGO_v0.6.1_SAFE_CORE_REBUILD_GITHUB_READY.zip
 
-## Purpose
-This build resets the core client/case workflow to the database contract actually established by the CaseGO SQL history.
+## Fix
+Firm Owner/Admin case creation used insert().select().single(). The recovered
+restrictive SELECT policy calls STABLE can_access_case(id), which looks up the
+new case in the statement's pre-insert snapshot. The row is not visible to that
+lookup, even for an Owner/Admin with cases.create permission. System Admin
+returns true before the lookup and therefore succeeds.
 
-## Core rules
-- Supabase is the only CaseGO practice-data source.
-- Firm-owned writes use `CaseGOAuth.effectiveFirmId()`.
-- System Admin profile `firm_id` remains NULL by design; selected support firm supplies the effective firm ID.
-- Add Client sends only columns confirmed by the foundation `clients` schema.
-- `date_of_birth` and `preferred_language` are intentionally NOT sent because the live database reported `date_of_birth` missing.
-- Add Client waits for authentication/firm context before record-page wiring.
-- Additional phone rows use `client_phones`; the base client remains saved if an additional-phone insert fails, and the failure is shown.
-- Do not run the withdrawn v0.6.0 SQL.
+The frontend now generates the case UUID, inserts without RETURNING, then reads
+that exact UUID and effective firm in a separate request. Existing RLS and role
+permissions still govern both requests. No database migration is required.
 
-## Immediate acceptance test
-1. System Admin enters Rodriguez Law Firm.
-2. Open Add Client.
-3. Add First Name + Last Name and optionally phone/address/email.
-4. Save & Exit.
-5. Client must be inserted with the selected firm's UUID and redirect to `client-profile.html?id=<returned uuid>`.
-6. Saved fields must display on Client Profile.
-7. Save & Add Case must first create the client, then open Add Case with the exact returned client UUID.
+Repeated clicks are blocked while saving. If the case is saved but its readback,
+team or calendar save fails, the page says the case exists and prevents another
+case insert. A failed/uncertain network response also asks the user to check
+existing cases before retrying.
+
+## Preserved from v0.6.1
+- Supabase remains the only practice-data source.
+- Firm writes use CaseGOAuth.effectiveFirmId().
+- System Admin firm_id remains NULL; selected firm provides support context.
+- Add Client omits unconfirmed date_of_birth/preferred_language columns.
+- No SQL from withdrawn v0.6.0 should be run for this build.
+- No changes to tenant permissions, role assignments, theme or visual design.
+
+## Verification
+Reproduced original 42501 denial for Owner/Admin and success for System Admin
+in local PostgreSQL (PGlite) using recovered conversation SQL. Patched production
+case workflow passed case/team/calendar creation, assigned-attorney access,
+cross-firm denial, inactive/no-create-role denial, partial-save handling,
+uncertain-network handling and duplicate-submit checks. JavaScript syntax passed.
+
+This is not a fresh live-schema audit or authenticated hosted-browser test.
+If the live schema differs, retain the exact error message for diagnosis.
+
+## Deploy/test
+Upload ZIP CONTENTS to the existing GitHub repo root. No SQL step.
+Open the hosted app and refresh. app.js URLs include ?v=0.6.2.
+Sign in as the firm's Owner/Admin, open an existing client, Add Case,
+choose a case type, optional primary/team and court/legal dates, Create Case.
+Confirm the case on Client Profile after refresh. Also retest System Admin.
