@@ -610,3 +610,17 @@ body[data-page="add-client"] .content{padding:22px 26px 26px;max-width:1440px;ma
 .casego-dark .premium-form-section,.casego-dark .premium-optional-section{background:#0e2538;border-color:#29445a}.casego-dark .add-client-premium .client-phone-row{background:transparent;border-color:#29445a}.casego-dark .premium-section-head{border-color:#29445a}
 @media(max-width:1000px){.premium-client-grid{grid-template-columns:1fr 1fr}.premium-email{grid-column:1/-1}.premium-address-grid{grid-template-columns:1fr 1fr}.address-street{grid-column:1/-1}.add-client-premium .client-phone-row{grid-template-columns:120px 1fr 80px 80px 32px}}
 @media(max-width:720px){body[data-page="add-client"] .content{padding:16px}.add-client-header{align-items:flex-start;flex-direction:column}.add-client-actions{width:100%}.add-client-actions .btn{flex:1}.premium-client-grid,.premium-address-grid{grid-template-columns:1fr}.premium-email,.address-street{grid-column:auto}.phone-head{align-items:flex-start;gap:8px;flex-direction:column;padding-top:10px;padding-bottom:10px}.add-client-premium .client-phone-row{grid-template-columns:1fr 80px}.add-client-premium .phone-type-field,.add-client-premium .phone-number-field{grid-column:1/-1}.add-client-premium .client-phone-primary{grid-column:1;justify-content:flex-start}.add-client-premium .client-phone-remove{grid-column:2}.premium-save-bottom .btn{flex:1}}
+
+/* ===== v0.5.6 safe client intake workflow ===== */
+.add-client-premium{max-width:1500px;margin:0 auto}
+.premium-client-grid-identity{grid-template-columns:1.1fr .85fr 1.1fr .85fr}
+.premium-client-grid-identity .premium-email{grid-column:span 2}
+.premium-address-grid{grid-template-columns:minmax(280px,2fr) minmax(150px,.8fr) minmax(180px,1fr) 100px 130px}
+.premium-address-grid .address-street{grid-column:auto}
+.premium-address-grid .address-suite{grid-column:auto}
+.add-client-actions,.premium-save-bottom{gap:8px;flex-wrap:wrap}
+.saved-client-check{display:inline-block;padding:4px 8px;border-radius:999px;background:#e9f8ef;color:#18794e;font-weight:700;font-size:11px}
+.case-create-actions{display:flex;gap:8px;margin-top:14px}
+.casego-dark .saved-client-check{background:#123a31;color:#7fe0b5}
+@media(max-width:1150px){.premium-client-grid-identity{grid-template-columns:1fr 1fr}.premium-client-grid-identity .premium-email{grid-column:auto}.premium-address-grid{grid-template-columns:1fr 1fr}.premium-address-grid .address-street{grid-column:1/-1}}
+@media(max-width:720px){.premium-client-grid-identity,.premium-address-grid{grid-template-columns:1fr}.premium-address-grid .address-street{grid-column:auto}}
