@@ -35,3 +35,5 @@ CaseGO v0.5.4 changes:
 - Add Client now supports Cell/Home/Work/Other phone types, extensions, Primary selection, and additional phone rows.
 - Phone numbers save to client_phones; the primary number is mirrored to clients.phone for compatibility with existing list/profile views.
 - Add Firm User wording changed from invitation to direct account creation with temporary password. Secure server-side creation remains to be wired before CREATE USER can be enabled.
+
+CaseGO v0.5.5: Premium Add Client redesign; compact layout; client-only creation; multiple typed phones; live phone formatting.
