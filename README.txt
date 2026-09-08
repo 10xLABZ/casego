@@ -1,44 +1,21 @@
-CaseGO v0.5 — CLIENT/CASE CLOUD WORKFLOW
+CaseGO v0.6.1 SAFE CORE REBUILD
+2026-09-08
 
-Web/PWA build only. Supabase is the application data source.
+This build is based on:
+- the CaseGO SQL history supplied by the project owner,
+- CaseGO v0.5.9 as the visual/code starting point,
+- the known-working RCM build as a behavioral reference,
+- the recovered CaseGO project handoff.
 
-Added in v0.5:
-- Persistent Light/Dark mode toggle at the bottom of the Quick Access rail using supplied CaseGO mode artwork.
-- Add Client writes to Supabase using the currently selected/effective firm (including Platform Admin support mode).
-- Optional initial case creation writes to Supabase.
-- Client Profile loads and edits Supabase client data.
-- Client Profile lists the client's accessible Supabase cases.
-- Add Case writes to Supabase.
-- Case Detail loads and edits Supabase case data.
-- Case access scope: Assigned Case Team Only or Firm-Wide.
-- Primary attorney and additional case-team assignment from active firm users.
-- Next court date / legal deadline create calendar_events records.
-- No demo/seed client, case, task, message, notification, billing, or chat data.
+IMPORTANT
+- Do NOT run the withdrawn v0.6.0 SQL.
+- This ZIP contains no SQL migration that needs to be run before testing.
+- Test Add Client first.
 
-Important:
-The older prototype fields Service Quote, Court, Judge, and dedicated Sub-Case metadata do not yet have dedicated CaseGO database columns. v0.5 does not fake persistence for unsupported fields. Sub-Case text is currently used as the case title. The next schema/UI pass can add the remaining legal matter fields deliberately.
+PRIMARY TEST
+System Admin -> Enter Rodriguez Firm -> Add Client -> Save & Exit.
+The client should save and redirect to its Client Profile.
 
+The Add Client payload has been limited to columns confirmed by the foundation schema. The live error showed date_of_birth is absent, so this build does not send date_of_birth or preferred_language.
 
-CaseGO v0.5.3 SETTINGS / USER MANAGEMENT
-- Rebuilt Settings as cloud-first UI.
-- My Profile for all users: name, title, phone/ext, weather location, timezone, theme and notification preferences.
-- Profile changes save through update_my_casego_profile RPC and user_preferences.
-- Firm Information is collapsed by default, prefilled from the active firm, and editable only by firm admins/system admin support mode.
-- User Management and role overview are admin-only.
-- Current admin account is protected from self-demotion/deactivation in the interface.
-- Removed legacy Security Code and desktop Backup/Restore settings.
-- + Add User opens the secure invitation workflow shell; SEND INVITE intentionally remains disabled until a server-side invite function is connected. No service-role key is placed in the browser.
-- Theme preference now syncs from the authenticated profile.
-
-
-CaseGO v0.5.4 changes:
-- Add Client now supports Cell/Home/Work/Other phone types, extensions, Primary selection, and additional phone rows.
-- Phone numbers save to client_phones; the primary number is mirrored to clients.phone for compatibility with existing list/profile views.
-- Add Firm User wording changed from invitation to direct account creation with temporary password. Secure server-side creation remains to be wired before CREATE USER can be enabled.
-
-CaseGO v0.5.5: Premium Add Client redesign; compact layout; client-only creation; multiple typed phones; live phone formatting.
-
-
-CaseGO v0.5.9 critical runtime repair:
-- Restores phoneFormat inside the client/case module scope. This fixes Save & Exit, Save & Add Case, additional-phone formatting, and Client Profile/Delete initialization.
-- Quick Access theme toggle now persists the same profile theme preference used by Settings.
+See CURRENT_BUILD.md and CASEGO_PROJECT_STATE.md for continuity/source-of-truth notes.

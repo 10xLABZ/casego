@@ -12,10 +12,10 @@
       <div class="field"><label>First Name <span class="req">*</span></label><input name="firstName" required autocomplete="given-name"/></div>
       <div class="field"><label>Middle Name</label><input name="middleName" autocomplete="additional-name"/></div>
       <div class="field"><label>Last Name <span class="req">*</span></label><input name="lastName" required autocomplete="family-name"/></div>
-      <div class="field"><label>Date of Birth</label><input name="dateOfBirth" type="date" autocomplete="bday"/></div>
+      
       <div class="field premium-email"><label>Email</label><input name="email" type="email" autocomplete="email" placeholder="client@email.com"/></div>
-      <div class="field"><label>Preferred Language</label><input name="preferredLanguage" placeholder="English"/></div>
-      <div class="field"><label>Client Status</label><select name="clientStatus"><option value="active" selected>Active</option><option value="inactive">Inactive</option></select></div>
+      
+      <div class="field"><label>Client Status</label><select name="clientStatus"><option value="prospective">Prospective</option><option value="active" selected>Active</option><option value="inactive">Inactive</option><option value="closed">Closed</option></select></div>
     </div>
   </section>
 
@@ -45,7 +45,7 @@
 
   <details class="premium-optional-section">
     <summary><span>▤</span><strong>Additional Information</strong><em>Optional</em></summary>
-    <div class="premium-optional-body"><p>Additional client intake fields will live here as CaseGO expands. Keeping them collapsed makes everyday client entry fast.</p></div>
+    <div class="premium-optional-body"><div class="field"><label>Client Notes</label><textarea name="notes" placeholder="Optional intake notes"></textarea></div></div>
   </details>
 
   <div class="premium-save-bottom"><button class="btn btn-cancel" type="button" onclick="location.href='clients.html'">Cancel</button><button class="btn btn-secondary" type="submit" name="saveAction" value="exit">Save &amp; Exit</button><button class="btn btn-primary" type="submit" name="saveAction" value="case">Save &amp; Add Case</button></div>

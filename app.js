@@ -1,4 +1,4 @@
-/* CaseGO Cloud v0.5
+/* CaseGO Cloud v0.6.1 SAFE CORE REBUILD
    Supabase is the ONLY application data source.
    No localStorage, SQLite, pywebview, demo records, seed records, or fake counters. */
 (function(){
@@ -48,9 +48,9 @@ async function contacts(){const data=await rows('contacts');const body=$('contac
 async function texts(){const data=await rows('communications','*',q=>q.eq('communication_type','sms').order('occurred_at',{ascending:false}));const list=$('textThreadList'),box=$('textMessages');if(list)list.innerHTML=data.length?data.map(x=>`<div class="comm-contact"><strong>${esc(x.direction||'message')}</strong><div class="cg-sub">${esc(x.body||'')}</div></div>`).join(''):empty('No client conversations yet.');if(box)box.innerHTML=empty('No messages yet.');}
 async function chat(){const box=$('firmChatMessages');if(box)box.innerHTML=empty('No firm chat messages yet.');}
 async function generic(table,bodyId,label){const data=await rows(table);const body=$(bodyId);if(body&&!data.length)body.innerHTML=`<tr><td colspan="10" class="empty"><strong>No ${label} found.</strong></td></tr>`}
-async function addClient(){const f=$('clientForm');if(!f)return;f.onsubmit=async e=>{e.preventDefault();const fd=new FormData(f),firm=window.CaseGOAuth?.effectiveFirmId?.();if(!firm){alert('No firm is selected. Platform Admins must enter a firm before adding clients.');return;}const client={firm_id:firm,first_name:String(fd.get('firstName')||'').trim(),last_name:String(fd.get('lastName')||'').trim(),phone:String(fd.get('phone')||'').trim()||null,email:String(fd.get('email')||'').trim()||null,address_line1:String(fd.get('address')||'').trim()||null,city:String(fd.get('city')||'').trim()||null,state:String(fd.get('state')||'').trim()||null,postal_code:String(fd.get('zip')||'').trim()||null,created_by:window.casegoProfile.id};const {data,error}=await sb().from('clients').insert(client).select().single();if(error){alert(error.message);return}location.href='client-profile.html?id='+data.id}}
+/* Add Client is handled by the authenticated core workflow below. */
 async function settings(){const f=$('settingsForm');if(!f)return;const firm=window.casegoFirm||{};if(f.elements.firmName)f.elements.firmName.value=firm.name||'';if(f.elements.address)f.elements.address.value=firm.address_line1||'';if(f.elements.cityStateZip)f.elements.cityStateZip.value=[firm.city,firm.state,firm.postal_code].filter(Boolean).join(', ');if(f.elements.phone)f.elements.phone.value=firm.phone||'';}
-async function boot(){navActive();const identity=await window.CaseGOAuth.requireAuth();if(!identity)return;window.CaseGOAuth.applyIdentityToPage();if(window.casegoProfile?.theme_preference)window.CaseGOTheme?.setTheme?.(window.casegoProfile.theme_preference);document.querySelectorAll('.rail-badge,.notification-badge').forEach(b=>{const n=Number(String(b.textContent||'').trim())||0;b.hidden=n<=0;if(n<=0)b.textContent=''});const p=document.body.dataset.page;try{if(p==='dashboard')await dashboard();else if(p==='clients')await clients();else if(p==='cases')await cases();else if(p==='tasks')await tasks();else if(p==='notes')await notes();else if(p==='contacts')await contacts();else if(p==='texts')await texts();else if(p==='chat')await chat();else if(p==='add-client'){}else if(p==='documents')await generic('documents','documentsBody','documents');else if(p==='invoices')await generic('invoices','invoicesBody','invoices');else if(p==='payments')await generic('payments','paymentsBody','payments');else if(p==='expenses')await generic('expenses','expensesBody','expenses');else if(p==='settings')await settings();}catch(e){console.error(e);toast('CaseGO could not load this page from Supabase.');}}
+async function boot(){navActive();const identity=await window.CaseGOAuth.requireAuth();if(!identity)return;window.CaseGOAuth.applyIdentityToPage();if(window.casegoProfile?.theme_preference)window.CaseGOTheme?.setTheme?.(window.casegoProfile.theme_preference);document.querySelectorAll('.rail-badge,.notification-badge').forEach(b=>{const n=Number(String(b.textContent||'').trim())||0;b.hidden=n<=0;if(n<=0)b.textContent=''});try{document.dispatchEvent(new CustomEvent('casego:auth-ready',{detail:identity}));}catch(_e){}const p=document.body.dataset.page;try{if(p==='dashboard')await dashboard();else if(p==='clients')await clients();else if(p==='cases')await cases();else if(p==='tasks')await tasks();else if(p==='notes')await notes();else if(p==='contacts')await contacts();else if(p==='texts')await texts();else if(p==='chat')await chat();else if(p==='documents')await generic('documents','documentsBody','documents');else if(p==='invoices')await generic('invoices','invoicesBody','invoices');else if(p==='payments')await generic('payments','paymentsBody','payments');else if(p==='expenses')await generic('expenses','expensesBody','expenses');else if(p==='settings')await settings();}catch(e){console.error(e);alert(e?.message||'CaseGO could not load this page from Supabase.');}}
 document.addEventListener('DOMContentLoaded',boot);
 })();
 
@@ -108,10 +108,60 @@ function clientPhoneRow(primary=false){const row=document.createElement('div');r
 function wireClientPhoneRow(row){const num=row.querySelector('.client-phone-number'),ext=row.querySelector('.client-phone-ext'),remove=row.querySelector('.client-phone-remove');if(num)num.addEventListener('input',ev=>ev.target.value=phoneFormat(ev.target.value));if(ext)ext.addEventListener('input',ev=>ev.target.value=String(ev.target.value||'').replace(/\D/g,'').slice(0,8));if(remove)remove.onclick=()=>{const list=$('clientPhoneList');const wasPrimary=row.querySelector('.client-phone-primary-input')?.checked;row.remove();const rows=[...list.querySelectorAll('[data-phone-row]')];if(rows.length===1)rows[0].querySelector('.client-phone-remove').hidden=true;if(wasPrimary&&rows.length)rows[0].querySelector('.client-phone-primary-input').checked=true;};}
 function setupClientPhones(){const list=$('clientPhoneList'),add=$('addClientPhoneButton');if(!list||!add)return;[...list.querySelectorAll('[data-phone-row]')].forEach(wireClientPhoneRow);add.onclick=()=>{const row=clientPhoneRow(false);list.appendChild(row);wireClientPhoneRow(row);[...list.querySelectorAll('.client-phone-remove')].forEach(b=>b.hidden=false);};}
 function collectClientPhones(){const rows=[...document.querySelectorAll('#clientPhoneList [data-phone-row]')],phones=[];for(const row of rows){const digits=clientPhoneDigits(row.querySelector('.client-phone-number')?.value);if(!digits)continue;if(digits.length!==10)throw new Error('Each phone number must contain 10 digits.');phones.push({phone_type:row.querySelector('.client-phone-type')?.value||'cell',phone_number:digits,extension:String(row.querySelector('.client-phone-ext')?.value||'').trim()||null,is_primary:!!row.querySelector('.client-phone-primary-input')?.checked});}if(phones.length&&!phones.some(x=>x.is_primary))phones[0].is_primary=true;return phones;}
-async function replaceAddClient(){if(document.body.dataset.page!=='add-client')return;setupClientPhones();const f=$('clientForm');if(!f)return;let requestedAction='exit';f.querySelectorAll('button[type=submit][name=saveAction]').forEach(b=>b.addEventListener('click',()=>{requestedAction=b.value==='case'?'case':'exit';}));f.onsubmit=async e=>{e.preventDefault();const fd=new FormData(f),action=(e.submitter?.value==='case'||requestedAction==='case')?'case':'exit';let phones=[];try{phones=collectClientPhones();}catch(err){alert(err.message);return;}const first=String(fd.get('firstName')||'').trim(),last=String(fd.get('lastName')||'').trim();if(!first||!last){alert('First Name and Last Name are required.');return;}const primary=phones.find(x=>x.is_primary)||phones[0]||null,payload={firm_id:firmId(),first_name:first,middle_name:String(fd.get('middleName')||'').trim()||null,last_name:last,date_of_birth:String(fd.get('dateOfBirth')||'').trim()||null,email:String(fd.get('email')||'').trim()||null,preferred_language:String(fd.get('preferredLanguage')||'').trim()||null,status:String(fd.get('clientStatus')||'active').trim().toLowerCase(),phone:primary?phoneFormat(primary.phone_number):null,address_line1:String(fd.get('address')||'').trim()||null,address_line2:String(fd.get('address2')||'').trim()||null,city:String(fd.get('city')||'').trim()||null,state:String(fd.get('state')||'').trim()||null,postal_code:String(fd.get('zip')||'').trim()||null,created_by:window.casegoProfile?.id};try{const buttons=[...f.querySelectorAll('button[type=submit]')];buttons.forEach(b=>b.disabled=true);const {data,error}=await sb().from('clients').insert(payload).select().single();if(error)throw error;if(phones.length){const phoneRows=phones.map(x=>({...x,firm_id:firmId(),client_id:data.id}));const {error:pe}=await sb().from('client_phones').insert(phoneRows);if(pe)throw pe;}if(action==='case')location.href='add-case.html?clientId='+encodeURIComponent(data.id)+'&from=new-client';else location.href='client-profile.html?id='+encodeURIComponent(data.id);}catch(err){alert(err.message);[...f.querySelectorAll('button[type=submit]')].forEach(b=>b.disabled=false);}};}
+async function replaceAddClient(){
+ if(document.body.dataset.page!=='add-client')return;
+ setupClientPhones();
+ const f=$('clientForm');if(!f)return;
+ let requestedAction='exit';
+ f.querySelectorAll('button[type=submit][name=saveAction]').forEach(b=>b.addEventListener('click',()=>{requestedAction=b.value==='case'?'case':'exit';}));
+ f.onsubmit=async e=>{
+  e.preventDefault();
+  const buttons=[...f.querySelectorAll('button[type=submit]')];
+  const fd=new FormData(f),action=(e.submitter?.value==='case'||requestedAction==='case')?'case':'exit';
+  const firm=firmId();
+  if(!firm){alert('No firm is selected. If you are CaseGO System Admin, enter a firm before adding a client.');return;}
+  const first=String(fd.get('firstName')||'').trim(),last=String(fd.get('lastName')||'').trim();
+  if(!first||!last){alert('First Name and Last Name are required.');return;}
+  let phones=[];try{phones=collectClientPhones();}catch(err){alert(err.message);return;}
+  const primary=phones.find(x=>x.is_primary)||phones[0]||null;
+  const status=String(fd.get('clientStatus')||'active').trim().toLowerCase();
+  if(!['prospective','active','inactive','closed'].includes(status)){alert('Invalid client status.');return;}
+  // IMPORTANT: This payload intentionally contains only columns confirmed by the CaseGO foundation SQL.
+  const payload={
+   firm_id:firm,
+   first_name:first,
+   middle_name:String(fd.get('middleName')||'').trim()||null,
+   last_name:last,
+   email:String(fd.get('email')||'').trim()||null,
+   phone:primary?phoneFormat(primary.phone_number):null,
+   address_line1:String(fd.get('address')||'').trim()||null,
+   address_line2:String(fd.get('address2')||'').trim()||null,
+   city:String(fd.get('city')||'').trim()||null,
+   state:String(fd.get('state')||'').trim()||null,
+   postal_code:String(fd.get('zip')||'').trim()||null,
+   country:'US',
+   status,
+   notes:String(fd.get('notes')||'').trim()||null,
+   created_by:window.casegoProfile?.id||null
+  };
+  try{
+   buttons.forEach(b=>b.disabled=true);
+   const {data,error}=await sb().from('clients').insert(payload).select('id,firm_id,first_name,middle_name,last_name,email,phone,status,address_line1,address_line2,city,state,postal_code,country,notes,created_at').single();
+   if(error)throw error;
+   if(!data?.id)throw new Error('Supabase saved the client but did not return a client ID.');
+   if(phones.length){
+    const phoneRows=phones.map(x=>({...x,firm_id:firm,client_id:data.id}));
+    const {error:pe}=await sb().from('client_phones').insert(phoneRows);
+    if(pe){console.error('Client saved, additional phone rows failed:',pe);alert('Client saved, but one or more additional phone records could not be saved: '+pe.message);}
+   }
+   location.href=(action==='case'?'add-case.html?clientId=':'client-profile.html?id=')+encodeURIComponent(data.id)+(action==='case'?'&from=new-client':'');
+  }catch(err){console.error('CaseGO Add Client failed',err,payload);alert('Client was not saved. '+(err?.message||String(err)));buttons.forEach(b=>b.disabled=false);}
+ };
+}
 
-async function v05(){try{await new Promise(r=>setTimeout(r,0));await replaceAddClient();await bootAddCase();await bootClientProfile();await bootCaseDetail();}catch(e){console.error('CaseGO v0.5',e);toast('CaseGO could not load this record from Supabase.');}}
-window.addEventListener('load',()=>setTimeout(v05,50));
+let coreRecordsBooted=false;async function bootCoreRecords(){if(coreRecordsBooted)return;coreRecordsBooted=true;try{await replaceAddClient();await bootAddCase();await bootClientProfile();await bootCaseDetail();}catch(e){console.error('CaseGO core record workflow',e);alert(e?.message||'CaseGO could not load this record from Supabase.');}}
+document.addEventListener('casego:auth-ready',bootCoreRecords,{once:true});
+window.addEventListener('load',()=>{if(window.casegoProfile&&window.casegoSession)bootCoreRecords();},{once:true});
 })();
 
 
