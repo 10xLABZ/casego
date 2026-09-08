@@ -62,8 +62,30 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const q=n=>new URLSearchParams(location.search).get(n);
 const nameOf=x=>[x?.first_name,x?.last_name].filter(Boolean).join(' ')||x?.organization_name||x?.email||'CaseGO User';
 const firmId=()=>window.CaseGOAuth?.effectiveFirmId?.();
+function phoneFormat(v){const d=String(v||'').replace(/\D/g,'').slice(0,10);if(d.length<4)return d;if(d.length<7)return `(${d.slice(0,3)}) ${d.slice(3)}`;return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;}
+async function persistThemePreference(theme){
+  theme=theme==='dark'?'dark':'light';
+  try{
+    const p=window.casegoProfile;
+    if(!p?.id||!sb())return;
+    const args={
+      new_first_name:p.first_name||'',
+      new_last_name:p.last_name||'',
+      new_job_title:p.job_title||'',
+      new_phone:p.phone||'',
+      new_extension:p.extension||'',
+      new_profile_image_url:p.profile_image_url||'',
+      new_weather_location:p.weather_location||'',
+      new_timezone:p.timezone||'',
+      new_theme_preference:theme
+    };
+    const {error}=await sb().rpc('update_my_casego_profile',args);
+    if(error)throw error;
+    p.theme_preference=theme;
+  }catch(err){console.error('CaseGO theme preference save failed',err);}
+}
 function setTheme(theme){theme=theme==='dark'?'dark':'light';document.body.classList.toggle('casego-dark',theme==='dark');document.documentElement.dataset.casegoTheme=theme;localStorage.setItem('casego_theme',theme);const im=$('casegoModeImage');if(im){im.src=`mode-${theme}.png`;im.alt=`${theme[0].toUpperCase()+theme.slice(1)} Mode`;im.title=`Current mode: ${theme}. Click to switch.`;}const b=$('casegoModeToggle');if(b){b.setAttribute('aria-label',`Current mode: ${theme}. Click to switch.`);b.title=`Current mode: ${theme}. Click to switch.`;}}
-function initTheme(){setTheme(localStorage.getItem('casego_theme')||'light');const b=$('casegoModeToggle');if(b)b.onclick=()=>setTheme(document.body.classList.contains('casego-dark')?'light':'dark');}
+function initTheme(){setTheme(localStorage.getItem('casego_theme')||'light');const b=$('casegoModeToggle');if(b)b.onclick=()=>{const theme=document.body.classList.contains('casego-dark')?'light':'dark';setTheme(theme);persistThemePreference(theme);};}
 window.CaseGOTheme={setTheme};
 document.addEventListener('DOMContentLoaded',initTheme);
 

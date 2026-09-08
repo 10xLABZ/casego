@@ -37,3 +37,8 @@ CaseGO v0.5.4 changes:
 - Add Firm User wording changed from invitation to direct account creation with temporary password. Secure server-side creation remains to be wired before CREATE USER can be enabled.
 
 CaseGO v0.5.5: Premium Add Client redesign; compact layout; client-only creation; multiple typed phones; live phone formatting.
+
+
+CaseGO v0.5.9 critical runtime repair:
+- Restores phoneFormat inside the client/case module scope. This fixes Save & Exit, Save & Add Case, additional-phone formatting, and Client Profile/Delete initialization.
+- Quick Access theme toggle now persists the same profile theme preference used by Settings.
