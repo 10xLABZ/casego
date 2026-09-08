@@ -1,19 +1,43 @@
-CaseGO v0.6.2 CASE CREATION FIX
-Based on the supplied v0.6.1 safe core rebuild.
+CaseGO v0.6.3 — DATES, CALENDAR & RECORD SETTINGS
+Based on v0.6.2, confirmed working by the user for Owner/Admin case creation.
 
-Upload this ZIP's contents over the existing GitHub repository root.
-NO SUPABASE SQL CHANGES ARE REQUIRED.
-Do not run the withdrawn v0.6.0 SQL.
+UPLOAD: Replace the existing GitHub repository root with this ZIP's contents.
+NO SQL MIGRATION. Keep existing Supabase data, tables, functions and permissions.
+Both app.js and casego_records.js must be uploaded. Page asset URLs use v0.6.3.
 
-Fixed the Owner/Admin case-creation failure reproduced against the recovered
-CaseGO database rules. Case creation now inserts first, then reads the saved
-case separately. Existing firm isolation and role restrictions remain intact.
-Duplicate clicks are blocked; partial-save failures explain that the case exists.
+WHAT WORKS IN THIS BUILD
+- Court and legal dates, times and comments are stored in calendar_events.
+- Add Case now includes Legal Time and validates date/time/comments before saving.
+- Case Detail displays saved dates; Edit Date opens the fields to change them.
+- Add Court Date / Add Legal Date adds another event without replacing history.
+- Clients directory lists its actual visible cases instead of a dash.
+- Client Profile shows next upcoming court/legal dates and comments.
+- Cases list columns now match their headings; search/status filters work.
+- Calendar month navigation, date selection, filters, event details, and existing
+  task due dates. Add Date / Edit Date / Remove Date use the same database records.
+- Client and Case Detail: gear menu -> Delete -> named confirmation.
+  Cancel does not delete. Actual delete remains protected by Supabase permissions.
 
-TEST: Sign in as the firm's Owner/Admin -> existing client -> Add Case ->
-Create Case -> Client Profile -> refresh and confirm the case is still there.
-Test primary/team assignments and court/legal dates, then retest System Admin.
+TEST ON THE HOSTED APP
+1. Sign in as firm Owner/Admin.
+2. Add a case with a court date/time/comment and legal date/time/comment.
+3. Open Case Detail; confirm both appear under Court & Legal Dates.
+4. Edit a date, save, reload; confirm it persists and appears in Calendar.
+5. Check Clients -> Cases links and Client Profile -> next court/legal columns.
+6. Navigate calendar months/filter/select a date; test Add Date linked to a case.
+7. Open each record's gear and cancel its delete confirmation.
+8. Retest System Admin support mode and an assigned attorney.
 
-Local PostgreSQL/permission and workflow tests passed.
-Live Supabase and hosted-browser confirmation is still required.
-See CURRENT_BUILD.md and CASE_CREATION_FIX.md for details.
+TIMES
+Displayed timezone: My Profile timezone, otherwise visible firm timezone,
+otherwise America/New_York. The actual timezone is shown on date screens.
+New timed entries carry a UTC offset correctly; date-only entries retain the day.
+Older builds submitted times without an offset. This build does not rewrite
+those stored timestamps; verify an older court time and edit it if needed.
+
+Local PostgreSQL/RLS and page interaction tests passed; live hosted acceptance
+is still required. No production data was changed during development.
+
+Next recommended work: Tasks + running case notes, then secure user creation/
+role management. Those older unfinished forms are not completed by this release.
+See CURRENT_BUILD.md for the schema contract and validation details.

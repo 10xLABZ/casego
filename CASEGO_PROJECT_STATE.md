@@ -1,5 +1,16 @@
 # CaseGO Project State
 
+## Latest: v0.6.3
+User confirmed v0.6.2 case creation works. The next issues were missing date
+display, blank case columns, nonfunctional Calendar and exposed Delete Client.
+v0.6.3 wires the existing calendar_events table to intake, Case Detail, client
+case summaries and Calendar; adds Legal Time, date editing, gear menus and
+confirmed deletion. No SQL changes. See CURRENT_BUILD.md and README.txt.
+New runtime file casego_records.js is required alongside app.js.
+Local tests pass; v0.6.3 live acceptance is pending.
+
+The sections below record earlier milestones.
+
 ## Latest: v0.6.2, 2026-09-08
 User reported Add Case worked as System Admin but failed as firm Owner/Admin.
 Reproduced against the recovered SQL: INSERT RETURNING fails the restrictive
