@@ -624,3 +624,11 @@ body[data-page="add-client"] .content{padding:22px 26px 26px;max-width:1440px;ma
 .casego-dark .saved-client-check{background:#123a31;color:#7fe0b5}
 @media(max-width:1150px){.premium-client-grid-identity{grid-template-columns:1fr 1fr}.premium-client-grid-identity .premium-email{grid-column:auto}.premium-address-grid{grid-template-columns:1fr 1fr}.premium-address-grid .address-street{grid-column:1/-1}}
 @media(max-width:720px){.premium-client-grid-identity,.premium-address-grid{grid-template-columns:1fr}.premium-address-grid .address-street{grid-column:auto}}
+
+/* CaseGO v0.5.7 client workflow fixes */
+.btn-cancel{background:#fff!important;border:1px solid #cf3f3f!important;color:#b52e2e!important}
+.btn-cancel:hover{background:#fff5f5!important}
+.case-date-row{display:grid;gap:12px;align-items:end;margin-bottom:12px}
+.court-date-row{grid-template-columns:180px 150px minmax(260px,1fr)}
+.legal-date-row{grid-template-columns:180px minmax(260px,1fr)}
+@media(max-width:800px){.court-date-row,.legal-date-row{grid-template-columns:1fr}.case-date-details{grid-column:auto}}
