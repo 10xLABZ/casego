@@ -8,6 +8,7 @@ const qs=n=>new URLSearchParams(location.search).get(n);
 const money=n=>Number(n||0).toLocaleString('en-US',{style:'currency',currency:'USD'});
 const date=d=>d?new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
 const sb=()=>window.casegoSupabase;
+function phoneFormat(v){const d=String(v||'').replace(/\D/g,'').slice(0,10);if(d.length<4)return d;if(d.length<7)return `(${d.slice(0,3)}) ${d.slice(3)}`;return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;}
 function navActive(){const p=location.pathname.split('/').pop()||'index.html';document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.getAttribute('href')===p));}
 function empty(msg){return `<div class="empty"><strong>${esc(msg)}</strong></div>`}
 function toast(m){const t=$('toast');if(t){t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',1800)}}
