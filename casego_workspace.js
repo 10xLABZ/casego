@@ -1,4 +1,4 @@
-/* CaseGO v0.6.5 — intake, billing, court history and shared record actions. */
+/* CaseGO v0.6.7 — responsive dashboard and related case/client records. */
 (function(){
 'use strict';
 const R=window.CaseGORecords,$=id=>document.getElementById(id),sb=()=>window.casegoSupabase;
@@ -293,6 +293,31 @@ function activateTabs(){
  tabs.forEach(b=>b.onclick=()=>{activate(b.dataset.workspaceTab);history.replaceState(null,'','#'+b.dataset.workspaceTab);});
  activate(location.hash.slice(1));return activate;
 }
+async function openRelatedCreate(kind,context,done){
+ const permission=kind==='task'?'tasks.create':kind==='note'?'notes.create':'expenses.create';
+ if(!await R.can(permission)){window.alert('Your role cannot add '+kind+'s.');return;}
+ const labels={task:'Task',note:'Note',expense:'Expense'},label=labels[kind],d=modal('Add '+label),form=document.createElement('form');
+ if(kind==='task')form.innerHTML=field('Task Title','title','','text',true)+area('Description','description')+'<div class="form-grid-3">'+field('Due Date','due_date','','date')+field('Due Time','due_time','','time')+select('Priority','priority',['low','normal','high','urgent'],'normal')+'</div>';
+ if(kind==='note')form.innerHTML=field('Note Title','title')+select('Note Type','note_type',['general','client','case','phone_call','meeting','email','internal'],context.caseId?'case':'client')+area('Note','body','') ;
+ if(kind==='expense')form.innerHTML='<div class="form-grid-3">'+field('Expense Date','expense_date',new Date().toISOString().slice(0,10),'date',true)+field('Category','category')+field('Amount','amount','','number',true)+'</div>'+area('Description','description')+'<label class="intake-next"><input type="checkbox" name="billable"> Bill this expense to the client</label>';
+ form.innerHTML+='<p class="record-error" data-status role="status"></p><div class="actions"><button type="button" class="btn btn-secondary" data-cancel>Cancel</button><button class="btn btn-primary">Add '+label+'</button></div>';d.body.appendChild(form);
+ if(kind==='expense'){form.elements.amount.min='0';form.elements.amount.step='0.01';}
+ form.querySelector('[data-cancel]').onclick=()=>d.close(true);form.oninput=()=>{d.dirty=true;};
+ form.onsubmit=async ev=>{ev.preventDefault();if(d.busy||!form.reportValidity())return;d.busy=true;try{const fd=new FormData(form),base={firm_id:firm(),client_id:context.clientId||null,case_id:context.caseId||null,created_by:window.casegoProfile.id};let payload;
+   if(kind==='task'){const dueDate=val(fd,'due_date'),dueTime=val(fd,'due_time');if(!dueDate&&(dueTime))throw new Error('Choose a due date for the selected time.');payload={...base,title:val(fd,'title'),description:val(fd,'description')||null,status:'open',priority:val(fd,'priority'),due_at:dueDate?R.timestamp(dueDate,dueTime):null,assigned_to:window.casegoProfile.id};}
+   if(kind==='note')payload={...base,title:val(fd,'title')||null,body:val(fd,'body'),note_type:val(fd,'note_type'),is_pinned:false};
+   if(kind==='expense')payload={...base,expense_date:val(fd,'expense_date'),category:val(fd,'category')||null,description:val(fd,'description'),amount:Number(val(fd,'amount')),billable:fd.get('billable')==='on'};
+   if((kind==='note'||kind==='expense')&&!payload.description&&!payload.body)throw new Error('Enter '+(kind==='note'?'the note':'an expense description')+'.');
+   const table=kind==='task'?'tasks':kind==='note'?'notes':'expenses',{error}=await sb().from(table).insert(payload);if(error)throw error;d.dirty=false;d.busy=false;d.close(true);await done();
+  }catch(error){feedback(form,errorText(error));}finally{d.busy=false;}};
+}
+async function clientRelatedLists(clientId){
+ const host=$('clientRelatedGrid');if(!host)return;
+ for(const [table,id,columns] of [['tasks','clientTasksList',['title','status','priority']],['notes','clientNotesList',['title','body']],['expenses','clientExpensesList',['expense_date','description','amount']]]){
+  const rows=await R.list(table,q=>q.eq('client_id',clientId).order('created_at',{ascending:false}).order('id'));
+  $(id).innerHTML=rows.slice(0,10).map(row=>'<article class="case-date-card"><strong>'+esc(row[columns[0]]||table)+'</strong>'+columns.slice(1).map(col=>'<p>'+esc(row[col]??'—')+'</p>').join('')+'</article>').join('')||'<p class="empty">No '+table+' recorded.</p>';
+ }
+}
 async function clientPage(){
  const id=new URLSearchParams(location.search).get('id');
  const {data:c,error}=await sb().from('clients').select('*').eq('id',id).eq('firm_id',firm()).single();if(error)throw error;
@@ -305,14 +330,16 @@ async function clientPage(){
  const report=()=>snapshot(name(c),[{title:'Client',rows:['client_type','organization_name','first_name','last_name','email','phone','address_line1','city','state','postal_code','status','notes'].map(k=>[k.replaceAll('_',' '),c[k]])}]);
  const actions=$('clientActions');toolbar(actions,report,{save:canEdit?()=>form.requestSubmit():null});
  $('clientAddCase').href='add-case.html?clientId='+encodeURIComponent(id);
+ if(!$('clientRelatedActions')){const buttons=document.createElement('div');buttons.id='clientRelatedActions';buttons.className='related-create-actions';buttons.innerHTML='<button class="btn btn-secondary btn-small" data-add-task>＋ Add Task</button><button class="btn btn-secondary btn-small" data-add-note>＋ Add Note</button><button class="btn btn-secondary btn-small" data-add-expense>＋ Add Expense</button>';actions.appendChild(buttons);buttons.querySelector('[data-add-task]').onclick=()=>openRelatedCreate('task',{clientId:id},()=>clientRelatedLists(id));buttons.querySelector('[data-add-note]').onclick=()=>openRelatedCreate('note',{clientId:id},()=>clientRelatedLists(id));buttons.querySelector('[data-add-expense]').onclick=()=>openRelatedCreate('expense',{clientId:id},()=>clientRelatedLists(id));}
  await R.recordGear(actions,'client',c,()=>{location.href='clients.html';});
  await R.clientCaseList($('clientCasesBody'),id);
+ const casesPanel=$('clientCasesBody').closest('.panel');if(!$('clientRelatedGrid')){const grid=document.createElement('div');grid.id='clientRelatedGrid';grid.className='client-related-grid';grid.innerHTML='<section class="panel"><div class="panel-head">TASKS</div><div class="related-card-list" id="clientTasksList"></div></section><section class="panel"><div class="panel-head">NOTES</div><div class="related-card-list" id="clientNotesList"></div></section><section class="panel"><div class="panel-head">EXPENSES</div><div class="related-card-list" id="clientExpensesList"></div></section>';casesPanel.insertAdjacentElement('afterend',grid);}await clientRelatedLists(id);
 }
 async function casePage(){
  const id=new URLSearchParams(location.search).get('id');
  const {data:c,error}=await sb().from('cases').select('*').eq('id',id).eq('firm_id',firm()).single();if(error)throw error;
  const {data:client,error:ce}=await sb().from('clients').select('*').eq('id',c.client_id).eq('firm_id',firm()).single();if(ce)throw ce;
- $('caseTitle').textContent=name(client);$('caseMeta').textContent=[c.case_type,c.title,c.case_number].filter(Boolean).join(' · ');
+ $('caseTitle').innerHTML='<a class="case-client-link" href="client-profile.html?id='+encodeURIComponent(client.id)+'" title="View client profile">'+esc(name(client))+'</a>';$('caseMeta').textContent=[c.case_type,c.title,c.case_number].filter(Boolean).join(' · ');
  $('caseStatusDisplay').textContent=c.case_status;
  const form=$('caseForm');
  if(!form.querySelector('[name="billingType"]')){
@@ -349,6 +376,7 @@ async function casePage(){
   {title:'Dates',rows:(await R.caseEvents(id)).map(e=>[R.eventLabel(e),(e.title||'')+(e.completed_at?' — Completed: '+e.completion_outcome:'')])}
  ]);
  toolbar($('caseActions'),report,{save:canEdit?()=>form.requestSubmit():null});
+ if(!$('caseRelatedActions')){const buttons=document.createElement('div');buttons.id='caseRelatedActions';buttons.className='related-create-actions';buttons.innerHTML='<button class="btn btn-secondary btn-small" data-add-task>＋ Add Task</button><button class="btn btn-secondary btn-small" data-add-note>＋ Add Note</button><button class="btn btn-secondary btn-small" data-add-expense>＋ Add Expense</button>';$('caseActions').appendChild(buttons);const refresh=()=>relatedLists(c);buttons.querySelector('[data-add-task]').onclick=()=>openRelatedCreate('task',{clientId:c.client_id,caseId:c.id},refresh);buttons.querySelector('[data-add-note]').onclick=()=>openRelatedCreate('note',{clientId:c.client_id,caseId:c.id},refresh);buttons.querySelector('[data-add-expense]').onclick=()=>openRelatedCreate('expense',{clientId:c.client_id,caseId:c.id},refresh);}
  await R.recordGear($('caseActions'),'case',c,()=>{location.href='client-profile.html?id='+c.client_id;});
  activateTabs();
  await Promise.all([dateHistory($('caseDatesPanel'),c,'court'),dateHistory($('appointmentsPanel'),c,'appointment'),relatedLists(c),timeEntryPanel(c)]);
