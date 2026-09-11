@@ -48,7 +48,7 @@ function clientForm(client={},phones=[],isNew=true){
  form.innerHTML='<div class="intake-type-switch" role="group" aria-label="Client type"><button type="button" data-kind="individual">♙ Individual</button><button type="button" data-kind="organization">▥ Organization</button></div><input type="hidden" name="client_type">'+
   '<fieldset data-fields="individual"><div class="intake-identity-grid">'+
   field('First Name','first_name',client.first_name,'text',true)+field('Middle Name','middle_name',client.middle_name)+field('Last Name','last_name',client.last_name,'text',true)+field('Date of Birth','date_of_birth',client.date_of_birth,'date')+field('SSN (optional)','ssn',client.ssn,'password')+'<button class="btn btn-secondary btn-small" type="button" data-reveal="ssn">Show SSN</button></div></fieldset>'+
-  '<fieldset data-fields="organization">'+field('Organization Name','organization_name',client.organization_name,'text',true)+'<div class="form-grid">'+
+  '<fieldset data-fields="organization" class="organization-compact-grid">'+field('Organization Name','organization_name',client.organization_name,'text',true)+'<div class="form-grid">'+
   select('Corporate Structure','corporate_structure',['','LLC','Corporation','Partnership','Sole Proprietorship','Nonprofit','Government','Other'],client.corporate_structure)+field('Industry','industry',client.industry)+field('EIN (optional)','ein',client.ein,'password')+'<button class="btn btn-secondary btn-small" type="button" data-reveal="ein">Show EIN</button></div>'+field('Registered Agent','registered_agent',client.registered_agent)+'</fieldset>'+
   '<div class="form-grid-3">'+field('Email','email',client.email,'email')+field('Preferred Language','preferred_language',client.preferred_language)+select('Client Status','status',['prospective','active','inactive','closed'],client.status||'active')+'</div>'+
   '<div class="intake-section-head"><h3>Phone Numbers</h3><button type="button" class="btn btn-secondary btn-small" data-add-phone>＋ Add Phone</button></div><div data-phones></div>'+
@@ -294,7 +294,7 @@ function activateTabs(){
  activate(location.hash.slice(1));return activate;
 }
 async function openRelatedCreate(kind,context,done){
- const permission=kind==='task'?'tasks.create':kind==='note'?'notes.create':'expenses.create';
+ const permission=kind==='task'?'tasks.manage':kind==='note'?'notes.manage':'expenses.create';
  if(!await R.can(permission)){window.alert('Your role cannot add '+kind+'s.');return;}
  const labels={task:'Task',note:'Note',expense:'Expense'},label=labels[kind],d=modal('Add '+label),form=document.createElement('form');
  if(kind==='task')form.innerHTML=field('Task Title','title','','text',true)+area('Description','description')+'<div class="form-grid-3">'+field('Due Date','due_date','','date')+field('Due Time','due_time','','time')+select('Priority','priority',['low','normal','high','urgent'],'normal')+'</div>';

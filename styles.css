@@ -177,6 +177,19 @@
   }
 }
 
+/* v0.6.8 denser legal-record forms and per-user feature chooser */
+@media(min-width:1101px){
+ .intake-identity-grid{grid-template-columns:minmax(180px,1.2fr) minmax(120px,.65fr) minmax(180px,1.2fr) minmax(170px,.9fr);gap:11px}
+ .intake-identity-grid>.field:nth-child(5){grid-column:1/4}.intake-identity-grid>[data-reveal="ssn"]{grid-column:4;align-self:end;justify-self:start;margin-bottom:1px}
+ .organization-compact-grid{grid-template-columns:minmax(320px,1.35fr) minmax(260px,1fr)!important;gap:11px!important}
+ .organization-compact-grid>.field:first-child{grid-column:1;grid-row:1}.organization-compact-grid>.field:last-child{grid-column:2;grid-row:1}
+ .organization-compact-grid>.form-grid{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:minmax(180px,.8fr) minmax(220px,1fr) minmax(260px,1.2fr) auto;gap:11px;align-items:end}
+ .content:not(.attorney-dashboard) .form-card .form-grid,.record-dialog .form-grid{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+ .content:not(.attorney-dashboard) .form-card .form-grid-3,.record-dialog .form-grid-3{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+}
+.create-user-permissions{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:12px;max-height:310px;overflow:auto}.permission-chooser-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.permission-chooser-head strong{font-size:11px}.permission-chooser-head span{display:flex;gap:6px}.permission-chooser-head button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:5px 8px;font-size:9px;cursor:pointer}.permission-check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.permission-choice{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:7px;padding:8px;background:var(--card)}.permission-choice input{margin-top:2px;accent-color:var(--blue)}.permission-choice span{display:flex;flex-direction:column;min-width:0}.permission-choice b{font-size:10px}.permission-choice small{font-size:8px;line-height:1.35;color:var(--muted)}.permission-choice:has(input:disabled){background:rgba(32,164,100,.08);border-color:rgba(32,164,100,.3)}
+@media(max-width:720px){.permission-check-grid{grid-template-columns:1fr}.organization-compact-grid{display:grid!important;grid-template-columns:1fr!important}.organization-compact-grid>.form-grid{grid-template-columns:1fr!important}}
+
 /* v0.6.7: dashboard content must remain reachable at every zoom level. */
 html,body{min-height:100%;overflow-x:hidden;overflow-y:auto}
 body:has(.attorney-dashboard){overflow-y:auto!important}
