@@ -13,33 +13,14 @@ function navActive(){const p=location.pathname.split('/').pop()||'index.html';do
 function empty(msg){return `<div class="empty"><strong>${esc(msg)}</strong></div>`}
 function toast(m){const t=$('toast');if(t){t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',1800)}}
 async function rows(table,select='*',builder){let q=sb().from(table).select(select);const firmId=window.CaseGOAuth?.effectiveFirmId?.();const firmTables=new Set(['clients','cases','tasks','calendar_events','notes','payments','documents','communications','contacts','invoices','expenses','case_team_members','case_contacts','client_contact_updates','contact_updates','firm_settings','integration_connections','firm_subscriptions']);if(firmId&&firmTables.has(table))q=q.eq('firm_id',firmId);if(builder)q=builder(q);const {data,error}=await q;if(error)throw error;return data||[]}
-function cname(c){return [c?.first_name,c?.last_name].filter(Boolean).join(' ')||c?.organization_name||'Unnamed Client'}
+function cname(c){return c?.organization_name||[c?.first_name,c?.last_name].filter(Boolean).join(' ')||c?.organization_name||'Unnamed Client'}
 window.qs=qs; window.toast=toast;
 window.globalSearchGo=()=>{const q=$('globalSearch')?.value.trim();location.href='clients.html'+(q?'?q='+encodeURIComponent(q):'')};
 window.openNotifications=()=>toast('No notifications');
 window.platformEnterFirm=(id)=>window.CaseGOAuth.enterFirm(id);
 window.changeMonth=()=>{}; window.goToday=()=>{}; window.toggleTask=()=>{}; window.changeListPage=()=>{};
 
-async function dashboard(){
- const admin=!!window.casegoIsFirmAdmin;
- const name=[window.casegoProfile?.first_name,window.casegoProfile?.last_name].filter(Boolean).join(' ')||'CaseGO User';
- const h=document.querySelector('.attorney-welcome h1'); if(h)h.textContent=`Good ${new Date().getHours()<12?'morning':new Date().getHours()<18?'afternoon':'evening'}, ${name}`;
- document.querySelectorAll('.attorney-kpi span').forEach(el=>{if(admin&&el.textContent.trim()==='MY TASKS')el.textContent='FIRM TASKS';if(admin&&el.textContent.trim()==='MY CASES')el.textContent='ACTIVE CASES'});
- document.querySelectorAll('.panel-head span').forEach(el=>{if(admin&&el.textContent.trim()==='☑ MY TASKS')el.textContent='☑ FIRM TASKS'});
- const [clients,cases,tasks,events,notes,payments,docs,comms]=await Promise.all([
-  rows('clients'),rows('cases'),rows('tasks'),rows('calendar_events'),rows('notes'),rows('payments'),rows('documents'),rows('communications')]);
- const set=(id,v)=>{if($(id))$(id).textContent=v};
- set('kpiToday',events.filter(e=>new Date(e.start_at).toDateString()===new Date().toDateString()).length);
- set('kpiTasks',tasks.filter(t=>!['completed','cancelled'].includes(t.status)).length);
- set('kpiCases',cases.filter(c=>c.case_status==='active').length);
- set('todayEventCount',events.length); set('todayTaskCount',tasks.length);
- const sched=$('attorneySchedule'); if(sched)sched.innerHTML=events.slice(0,6).map(e=>`<div class="cg-row"><div><div class="cg-title">${esc(e.title)}</div><div class="cg-sub">${date(e.start_at)} • ${esc(e.event_type||'Event')}</div></div></div>`).join('')||empty('No upcoming dates or appointments.');
- const tb=$('attorneyTasks'); if(tb)tb.innerHTML=tasks.filter(t=>!['completed','cancelled'].includes(t.status)).slice(0,6).map(t=>`<div class="cg-row"><div><div class="cg-title">${esc(t.title)}</div><div class="cg-sub">${date(t.due_at)}</div></div></div>`).join('')||empty('No open tasks.');
- const ac=$('attentionCases'); if(ac)ac.innerHTML=empty('No cases need attention.');
- const ra=$('recentActivity'); if(ra){const activity=[...notes.map(x=>({at:x.created_at,t:'Note added'})),...payments.map(x=>({at:x.created_at,t:'Payment received'})),...docs.map(x=>({at:x.created_at,t:'Document linked'}))].sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,5);ra.innerHTML=activity.map(a=>`<div class="cg-row"><div><div class="cg-title">${a.t}</div><div class="cg-sub">${date(a.at)}</div></div></div>`).join('')||empty('No recent activity.');}
- const dm=$('dashboardMessages'); if(dm)dm.innerHTML=comms.filter(c=>c.communication_type==='sms').slice(0,4).map(c=>`<div class="cg-row"><div><div class="cg-title">Client message</div><div class="cg-sub">${esc(c.body||'')}</div></div></div>`).join('')||empty('No client messages yet.');
- document.querySelectorAll('.rail-badge').forEach(b=>{b.hidden=true;b.textContent='0'});
-}
+async function dashboard(){return window.CaseGOWorkspace.dashboard();}
 async function clients(){return window.CaseGORecords.directories('clients');}
 async function cases(){return window.CaseGORecords.directories('cases');}
 async function tasks(){const data=await rows('tasks');const body=$('tasksBody');if(body)body.innerHTML=data.map(t=>`<tr><td>${esc(t.title)}</td><td>${esc(t.priority||'normal')}</td><td>${date(t.due_at)}</td><td>${esc(t.status||'open')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty"><strong>No tasks found.</strong></td></tr>'}
@@ -50,7 +31,7 @@ async function chat(){const box=$('firmChatMessages');if(box)box.innerHTML=empty
 async function generic(table,bodyId,label){const data=await rows(table);const body=$(bodyId);if(body&&!data.length)body.innerHTML=`<tr><td colspan="10" class="empty"><strong>No ${label} found.</strong></td></tr>`}
 /* Add Client is handled by the authenticated core workflow below. */
 async function settings(){const f=$('settingsForm');if(!f)return;const firm=window.casegoFirm||{};if(f.elements.firmName)f.elements.firmName.value=firm.name||'';if(f.elements.address)f.elements.address.value=firm.address_line1||'';if(f.elements.cityStateZip)f.elements.cityStateZip.value=[firm.city,firm.state,firm.postal_code].filter(Boolean).join(', ');if(f.elements.phone)f.elements.phone.value=firm.phone||'';}
-async function boot(){navActive();const identity=await window.CaseGOAuth.requireAuth();if(!identity)return;window.CaseGOAuth.applyIdentityToPage();if(window.casegoProfile?.theme_preference)window.CaseGOTheme?.setTheme?.(window.casegoProfile.theme_preference);document.querySelectorAll('.rail-badge,.notification-badge').forEach(b=>{const n=Number(String(b.textContent||'').trim())||0;b.hidden=n<=0;if(n<=0)b.textContent=''});try{document.dispatchEvent(new CustomEvent('casego:auth-ready',{detail:identity}));}catch(_e){}const p=document.body.dataset.page;try{if(p==='dashboard')await dashboard();else if(p==='clients')await clients();else if(p==='cases')await cases();else if(p==='calendar')await window.CaseGORecords.calendar();else if(p==='tasks')await tasks();else if(p==='notes')await notes();else if(p==='contacts')await contacts();else if(p==='texts')await texts();else if(p==='chat')await chat();else if(p==='documents')await generic('documents','documentsBody','documents');else if(p==='invoices')await generic('invoices','invoicesBody','invoices');else if(p==='payments')await generic('payments','paymentsBody','payments');else if(p==='expenses')await generic('expenses','expensesBody','expenses');else if(p==='settings')await settings();}catch(e){console.error(e);alert(e?.message||'CaseGO could not load this page from Supabase.');}}
+async function boot(){navActive();const identity=await window.CaseGOAuth.requireAuth();if(!identity)return;window.CaseGOAuth.applyIdentityToPage();window.CaseGOWorkspace.init();if(window.casegoProfile?.theme_preference)window.CaseGOTheme?.setTheme?.(window.casegoProfile.theme_preference);document.querySelectorAll('.rail-badge,.notification-badge').forEach(b=>{const n=Number(String(b.textContent||'').trim())||0;b.hidden=n<=0;if(n<=0)b.textContent=''});try{document.dispatchEvent(new CustomEvent('casego:auth-ready',{detail:identity}));}catch(_e){}const p=document.body.dataset.page;try{if(p==='dashboard')await dashboard();else if(p==='clients')await clients();else if(p==='cases')await cases();else if(p==='calendar')await window.CaseGORecords.calendar();else if(p==='tasks')await tasks();else if(p==='notes')await notes();else if(p==='contacts')await contacts();else if(p==='texts')await texts();else if(p==='chat')await chat();else if(p==='documents')await generic('documents','documentsBody','documents');else if(p==='invoices')await window.CaseGOWorkspace.billingPage('invoices','invoicesBody');else if(p==='payments')await window.CaseGOWorkspace.billingPage('payments','paymentsBody');else if(p==='expenses')await generic('expenses','expensesBody','expenses');else if(p==='settings')await settings();}catch(e){console.error(e);alert(e?.message||'CaseGO could not load this page from Supabase.');}}
 document.addEventListener('DOMContentLoaded',boot);
 })();
 
@@ -60,29 +41,18 @@ document.addEventListener('DOMContentLoaded',boot);
 const $=id=>document.getElementById(id), sb=()=>window.casegoSupabase;
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const q=n=>new URLSearchParams(location.search).get(n);
-const nameOf=x=>[x?.first_name,x?.last_name].filter(Boolean).join(' ')||x?.organization_name||x?.email||'CaseGO User';
+const nameOf=x=>x?.organization_name||[x?.first_name,x?.last_name].filter(Boolean).join(' ')||x?.organization_name||x?.email||'CaseGO User';
 const firmId=()=>window.CaseGOAuth?.effectiveFirmId?.();
 function phoneFormat(v){const d=String(v||'').replace(/\D/g,'').slice(0,10);if(d.length<4)return d;if(d.length<7)return `(${d.slice(0,3)}) ${d.slice(3)}`;return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;}
-async function persistThemePreference(theme){
-  theme=theme==='dark'?'dark':'light';
-  try{
-    const p=window.casegoProfile;
-    if(!p?.id||!sb())return;
-    const args={
-      new_first_name:p.first_name||'',
-      new_last_name:p.last_name||'',
-      new_job_title:p.job_title||'',
-      new_phone:p.phone||'',
-      new_extension:p.extension||'',
-      new_profile_image_url:p.profile_image_url||'',
-      new_weather_location:p.weather_location||'',
-      new_timezone:p.timezone||'',
-      new_theme_preference:theme
-    };
-    const {error}=await sb().rpc('update_my_casego_profile',args);
-    if(error)throw error;
-    p.theme_preference=theme;
-  }catch(err){console.error('CaseGO theme preference save failed',err);}
+let themeSaveQueue=Promise.resolve();
+function persistThemePreference(theme){
+ themeSaveQueue=themeSaveQueue.then(async()=>{
+  const p=window.casegoProfile;if(!p?.id||!sb())return;
+  const {error}=await sb().rpc('save_casego_theme',{preference:theme});
+  if(error){toast('Theme changed on this device; account preference could not save.');return;}
+  p.theme_preference=theme;
+ }).catch(()=>toast('Account theme could not save.'));
+ return themeSaveQueue;
 }
 function setTheme(theme){theme=theme==='dark'?'dark':'light';document.body.classList.toggle('casego-dark',theme==='dark');document.documentElement.dataset.casegoTheme=theme;localStorage.setItem('casego_theme',theme);const im=$('casegoModeImage');if(im){im.src=`mode-${theme}.png`;im.alt=`${theme[0].toUpperCase()+theme.slice(1)} Mode`;im.title=`Current mode: ${theme}. Click to switch.`;}const b=$('casegoModeToggle');if(b){b.setAttribute('aria-label',`Current mode: ${theme}. Click to switch.`);b.title=`Current mode: ${theme}. Click to switch.`;}}
 function initTheme(){setTheme(localStorage.getItem('casego_theme')||'light');const b=$('casegoModeToggle');if(b)b.onclick=()=>{const theme=document.body.classList.contains('casego-dark')?'light':'dark';setTheme(theme);persistThemePreference(theme);};}
@@ -143,7 +113,7 @@ async function createCase(clientId,fd){
   if(!data?.id)throw new Error('The saved case could not be read.');
   stage='saving the case team';
   await saveTeam(id,payload.assigned_attorney_id);
-  stage='saving the court or legal dates';
+  stage='saving the court dates or appointments';
 
   if(events.length){const {error}=await sb().from('calendar_events').insert(events);if(error)throw error;}
   return data;
@@ -208,66 +178,11 @@ async function bootAddCase(){
 
 
 
-async function bootClientProfile(){if(document.body.dataset.page!=='client-profile')return;const id=q('id');const {data:c,error}=await sb().from('clients').select('*').eq('id',id).eq('firm_id',firmId()).single();if(error)throw error;if($('clientName'))$('clientName').textContent=nameOf(c);if($('clientMeta'))$('clientMeta').textContent=[c.status,c.email,c.phone?phoneFormat(c.phone):null].filter(Boolean).join(' • ');const map={firstName:'first_name',lastName:'last_name',phone:'phone',email:'email',address:'address_line1',city:'city',state:'state',zip:'postal_code'};for(const [el,col] of Object.entries(map))if($(el))$(el).value=c[col]||'';await window.CaseGORecords.recordGear(document.querySelector('.page-head .actions'),'client',c,()=>{location.href='clients.html';});const f=$('clientInfoForm');if(f)f.onsubmit=async e=>{e.preventDefault();const fd=new FormData(f),payload={};for(const [el,col] of Object.entries(map))payload[col]=String(fd.get(el)||'').trim()||null;const {error}=await sb().from('clients').update(payload).eq('id',id).eq('firm_id',firmId());if(error)alert(error.message);else{toast('Client information saved.');$('clientName').textContent=[payload.first_name,payload.last_name].filter(Boolean).join(' ')||'Client';}};await window.CaseGORecords.clientCaseList($('clientCasesBody'),id);
-const updates=$('contactUpdates');if(updates)updates.innerHTML='<div class="empty"><strong>No contact updates yet.</strong></div>';}
+async function bootClientProfile(){if(document.body.dataset.page==='client-profile')return window.CaseGOWorkspace.clientPage();}
+async function bootCaseDetail(){if(document.body.dataset.page==='case-detail')return window.CaseGOWorkspace.casePage();}
 
-async function bootCaseDetail(){if(document.body.dataset.page!=='case-detail')return;const id=q('id');const {data:c,error}=await sb().from('cases').select('*, clients(first_name,last_name,organization_name)').eq('id',id).eq('firm_id',firmId()).single();if(error)throw error;if($('caseTitle'))$('caseTitle').textContent=c.title||c.case_type||'Case';if($('caseMeta'))$('caseMeta').textContent=`${nameOf(c.clients)}${c.case_number?' • '+c.case_number:''}`;if($('caseStatusDisplay'))$('caseStatusDisplay').textContent=c.case_status||'';const vals={caseType:c.case_type,subCaseType:c.title,caseNumber:c.case_number,caseStatus:(c.case_status||'active').replace(/^./,m=>m.toUpperCase()),caseNotes:c.description};for(const [k,v] of Object.entries(vals))if($(k))$(k).value=v||'';if($('caseAccessScope'))$('caseAccessScope').value=c.access_scope||'team';const {data:tm,error:te}=await sb().from('case_team_members').select('user_id').eq('case_id',id).eq('firm_id',firmId());if(te)throw te;await loadTeamPicker(c.assigned_attorney_id,(tm||[]).map(x=>x.user_id));const f=$('caseForm');if(f)f.onsubmit=async e=>{e.preventDefault();const fd=new FormData(f),primary=String(fd.get('primaryAttorney')||'')||null,payload={case_type:String(fd.get('caseType')||'').trim(),title:String(fd.get('subCaseType')||'').trim()||String(fd.get('caseType')||'').trim(),case_number:String(fd.get('caseNumber')||'').trim()||null,case_status:String(fd.get('caseStatus')||'active').toLowerCase(),description:String(fd.get('caseNotes')||'').trim()||null,assigned_attorney_id:primary,access_scope:String(fd.get('accessScope')||'team')};const {error}=await sb().from('cases').update(payload).eq('id',id).eq('firm_id',firmId());if(error){alert(error.message);return;}try{await saveTeam(id,primary);toast('Case saved.');}catch(err){alert(err.message);}};await window.CaseGORecords.caseDates($('caseDatesPanel'),c);await window.CaseGORecords.recordGear(document.querySelector('.page-head .actions'),'case',c,()=>{location.href='client-profile.html?id='+encodeURIComponent(c.client_id);});for(const id2 of ['caseNotesList','caseDocumentsList','caseTasksList','caseExpensesList','casePaymentsList','caseInvoicesList'])if($(id2))$(id2).innerHTML='<div class="empty"><strong>No records yet.</strong></div>';}
-
-function clientPhoneDigits(v){return String(v||'').replace(/\D/g,'').slice(0,10);}
-function clientPhoneRow(primary=false){const row=document.createElement('div');row.className='client-phone-row';row.dataset.phoneRow='';row.innerHTML=`<div class="field phone-type-field"><label>Type</label><select class="client-phone-type"><option value="cell" selected>Cell</option><option value="home">Home</option><option value="work">Work</option><option value="other">Other</option></select></div><div class="field phone-number-field"><label>Phone</label><input class="client-phone-number" inputmode="tel" placeholder="(203) 555-0123"/></div><div class="field phone-ext-field"><label>Ext.</label><input class="client-phone-ext" inputmode="numeric" placeholder="123"/></div><label class="client-phone-primary"><input class="client-phone-primary-input" type="radio" name="primaryPhone" ${primary?'checked':''}/><span>Primary</span></label><button class="client-phone-remove" type="button" title="Remove phone">×</button>`;return row;}
-function wireClientPhoneRow(row){const num=row.querySelector('.client-phone-number'),ext=row.querySelector('.client-phone-ext'),remove=row.querySelector('.client-phone-remove');if(num)num.addEventListener('input',ev=>ev.target.value=phoneFormat(ev.target.value));if(ext)ext.addEventListener('input',ev=>ev.target.value=String(ev.target.value||'').replace(/\D/g,'').slice(0,8));if(remove)remove.onclick=()=>{const list=$('clientPhoneList');const wasPrimary=row.querySelector('.client-phone-primary-input')?.checked;row.remove();const rows=[...list.querySelectorAll('[data-phone-row]')];if(rows.length===1)rows[0].querySelector('.client-phone-remove').hidden=true;if(wasPrimary&&rows.length)rows[0].querySelector('.client-phone-primary-input').checked=true;};}
-function setupClientPhones(){const list=$('clientPhoneList'),add=$('addClientPhoneButton');if(!list||!add)return;[...list.querySelectorAll('[data-phone-row]')].forEach(wireClientPhoneRow);add.onclick=()=>{const row=clientPhoneRow(false);list.appendChild(row);wireClientPhoneRow(row);[...list.querySelectorAll('.client-phone-remove')].forEach(b=>b.hidden=false);};}
-function collectClientPhones(){const rows=[...document.querySelectorAll('#clientPhoneList [data-phone-row]')],phones=[];for(const row of rows){const digits=clientPhoneDigits(row.querySelector('.client-phone-number')?.value);if(!digits)continue;if(digits.length!==10)throw new Error('Each phone number must contain 10 digits.');phones.push({phone_type:row.querySelector('.client-phone-type')?.value||'cell',phone_number:digits,extension:String(row.querySelector('.client-phone-ext')?.value||'').trim()||null,is_primary:!!row.querySelector('.client-phone-primary-input')?.checked});}if(phones.length&&!phones.some(x=>x.is_primary))phones[0].is_primary=true;return phones;}
-async function replaceAddClient(){
- if(document.body.dataset.page!=='add-client')return;
- setupClientPhones();
- const f=$('clientForm');if(!f)return;
- let requestedAction='exit';
- f.querySelectorAll('button[type=submit][name=saveAction]').forEach(b=>b.addEventListener('click',()=>{requestedAction=b.value==='case'?'case':'exit';}));
- f.onsubmit=async e=>{
-  e.preventDefault();
-  const buttons=[...f.querySelectorAll('button[type=submit]')];
-  const fd=new FormData(f),action=(e.submitter?.value==='case'||requestedAction==='case')?'case':'exit';
-  const firm=firmId();
-  if(!firm){alert('No firm is selected. If you are CaseGO System Admin, enter a firm before adding a client.');return;}
-  const first=String(fd.get('firstName')||'').trim(),last=String(fd.get('lastName')||'').trim();
-  if(!first||!last){alert('First Name and Last Name are required.');return;}
-  let phones=[];try{phones=collectClientPhones();}catch(err){alert(err.message);return;}
-  const primary=phones.find(x=>x.is_primary)||phones[0]||null;
-  const status=String(fd.get('clientStatus')||'active').trim().toLowerCase();
-  if(!['prospective','active','inactive','closed'].includes(status)){alert('Invalid client status.');return;}
-  // IMPORTANT: This payload intentionally contains only columns confirmed by the CaseGO foundation SQL.
-  const payload={
-   firm_id:firm,
-   first_name:first,
-   middle_name:String(fd.get('middleName')||'').trim()||null,
-   last_name:last,
-   email:String(fd.get('email')||'').trim()||null,
-   phone:primary?phoneFormat(primary.phone_number):null,
-   address_line1:String(fd.get('address')||'').trim()||null,
-   address_line2:String(fd.get('address2')||'').trim()||null,
-   city:String(fd.get('city')||'').trim()||null,
-   state:String(fd.get('state')||'').trim()||null,
-   postal_code:String(fd.get('zip')||'').trim()||null,
-   country:'US',
-   status,
-   notes:String(fd.get('notes')||'').trim()||null,
-   created_by:window.casegoProfile?.id||null
-  };
-  try{
-   buttons.forEach(b=>b.disabled=true);
-   const {data,error}=await sb().from('clients').insert(payload).select('id,firm_id,first_name,middle_name,last_name,email,phone,status,address_line1,address_line2,city,state,postal_code,country,notes,created_at').single();
-   if(error)throw error;
-   if(!data?.id)throw new Error('Supabase saved the client but did not return a client ID.');
-   if(phones.length){
-    const phoneRows=phones.map(x=>({...x,firm_id:firm,client_id:data.id}));
-    const {error:pe}=await sb().from('client_phones').insert(phoneRows);
-    if(pe){console.error('Client saved, additional phone rows failed:',pe);alert('Client saved, but one or more additional phone records could not be saved: '+pe.message);}
-   }
-   location.href=(action==='case'?'add-case.html?clientId=':'client-profile.html?id=')+encodeURIComponent(data.id)+(action==='case'?'&from=new-client':'');
-  }catch(err){console.error('CaseGO Add Client failed',err,payload);alert('Client was not saved. '+(err?.message||String(err)));buttons.forEach(b=>b.disabled=false);}
- };
-}
+async function replaceAddClient(){if(document.body.dataset.page==='add-client')return window.CaseGOWorkspace.intakePage();}
+window.CaseGOCore={saveTeam,loadTeamPicker};
 
 let coreRecordsBooted=false;async function bootCoreRecords(){if(coreRecordsBooted)return;coreRecordsBooted=true;try{await replaceAddClient();await bootAddCase();await bootClientProfile();await bootCaseDetail();}catch(e){console.error('CaseGO core record workflow',e);alert(e?.message||'CaseGO could not load this record from Supabase.');}}
 document.addEventListener('casego:auth-ready',bootCoreRecords,{once:true});

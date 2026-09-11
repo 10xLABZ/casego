@@ -59,7 +59,7 @@ function eventLabel(event){
  const p=eventParts(event);
  return dateLabel(p.date)+(p.time?' · '+new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',timeZone:zone}).format(new Date(event.start_at)):' · Date only');
 }
-function typeLabel(type){return {court:'Court',legal_deadline:'Legal deadline',appointment:'Appointment',meeting:'Meeting',reminder:'Reminder',other:'Other',task:'Task'}[type]||type;}
+function typeLabel(type){return {court:'Court',legal_deadline:'Appointment',appointment:'Appointment',meeting:'Meeting',reminder:'Reminder',other:'Other',task:'Task'}[type]||type;}
 function comments(event){
  // v0.6.2 stored date comments in title; keep displaying those existing records.
  return event.description??(['court','legal_deadline'].includes(event.event_type)&&!['Court Date','Legal Deadline'].includes(event.title)?event.title:'')??'';
@@ -67,7 +67,8 @@ function comments(event){
 async function list(table,build=q=>q){
  let out=[];
  for(let offset=0;;offset+=1000){
-  const {data,error}=await build(sb().from(table).select('*').eq('firm_id',firm())).range(offset,offset+999);
+  const projection=table==='clients'?'id,firm_id,client_type,first_name,middle_name,last_name,organization_name,email,phone,city,state,status,created_at':'*';
+  const {data,error}=await build(sb().from(table).select(projection).eq('firm_id',firm())).range(offset,offset+999);
   if(error)throw error;
   out.push(...(data||[]));
   if(!data||data.length<1000)return out;
@@ -77,7 +78,7 @@ function caseDrafts(fd,clientId,caseId){
  const events=[];
  for(const [type,dateField,timeField,noteField,title] of [
   ['court','nextCourtDate','courtTime','nextCourtDateNote','Court Date'],
-  ['legal_deadline','nextLegalDate','legalTime','nextLegalDateNote','Legal Deadline']
+  ['appointment','nextAppointmentDate','appointmentTime','nextAppointmentNote','Appointment']
  ]){
   const date=String(fd.get(dateField)||''),time=String(fd.get(timeField)||''),note=String(fd.get(noteField)||'').trim();
   if(!date){if(time||note)throw new Error('Enter the '+typeLabel(type).toLowerCase()+' date for its time/comments.');continue;}
@@ -122,7 +123,8 @@ async function deleteRecord(table,id){
  if(data?.length!==1)throw new Error('Nothing was deleted. The record may have changed or your permission may have been removed.');
 }
 async function recordGear(container,kind,record,done){
- if(!container||!await can(kind==='client'?'clients.delete':'cases.delete'))return;
+ const table={client:'clients',case:'cases',invoice:'invoices',payment:'payments'}[kind];
+ if(!container||!table||!await can(['invoice','payment'].includes(kind)?'billing.manage':table+'.delete'))return;
  const wrap=document.createElement('div');wrap.className='record-gear';
  const label=kind==='client'?[record.first_name,record.last_name].filter(Boolean).join(' ')||record.organization_name||'Client':record.title||record.case_type||'Case';
  wrap.innerHTML='<button type="button" class="btn btn-secondary gear-toggle" aria-label="'+esc(kind)+' settings" aria-expanded="false" title="'+esc(kind)+' settings">⚙</button><div class="record-menu" hidden><button type="button" class="delete-menu-action">Delete '+esc(kind)+'</button></div>';
@@ -131,7 +133,7 @@ async function recordGear(container,kind,record,done){
  toggle.onclick=()=>{menu.hidden=!menu.hidden;toggle.setAttribute('aria-expanded',String(!menu.hidden));};
  wrap.addEventListener('keydown',e=>{if(e.key==='Escape'){hide();toggle.focus();}});
  document.addEventListener('click',e=>{if(!wrap.contains(e.target))hide();});
- menu.querySelector('button').onclick=()=>{hide();confirmDelete(kind,label,async()=>{await deleteRecord(kind==='client'?'clients':'cases',record.id);await done();});};
+ menu.querySelector('button').onclick=()=>{hide();confirmDelete(kind,record.invoice_number||record.reference_number||label,async()=>{await deleteRecord(table,record.id);await done();});};
  container.appendChild(wrap);
 }
 async function caseEvents(caseId){await timezone();return list('calendar_events',q=>q.eq('case_id',caseId).order('start_at').order('id'));}
@@ -139,7 +141,7 @@ async function saveEvent(original,fd,context={}){
  const date=String(fd.get('date')||''),time=String(fd.get('time')||'');
  const start=timestamp(date,time);
  const type=String(fd.get('type')||original?.event_type||'appointment');
- if(!['court','legal_deadline','appointment','meeting','reminder','other'].includes(type))throw new Error('Choose an event type.');
+ if(!['court','appointment','meeting','reminder','other'].includes(type))throw new Error('Choose an event type.');
  const id=original?.id||context.draftId||window.crypto.randomUUID();
  const payload={event_type:type,title:String(fd.get('title')||'').trim()||typeLabel(type),
   description:String(fd.get('comments')||'').trim()||null,start_at:start,all_day:!time};
@@ -162,7 +164,7 @@ function dateFormHTML(event,initial={}){
  const p=event?.start_at?eventParts(event):{date:initial.date||parts(Date.now()).date,time:''};
  const type=event?.event_type||initial.type||'appointment';
  return '<div class="form-grid"><div class="field"><label>Type<select name="type">'+
-  ['court','legal_deadline','appointment','meeting','reminder','other'].map(t=>'<option value="'+t+'" '+(t===type?'selected':'')+'>'+typeLabel(t)+'</option>').join('')+
+  ['court','appointment','meeting','reminder','other'].map(t=>'<option value="'+t+'" '+(t===(type==='legal_deadline'?'appointment':type)?'selected':'')+'>'+typeLabel(t)+'</option>').join('')+
   '</select></label></div><div class="field"><label>Title<input name="title" value="'+esc(event?.title||initial.title||typeLabel(type))+'" required maxlength="250"></label></div></div>'+
   '<div class="case-date-row court-date-row"><div class="field"><label>Date<input name="date" type="date" required value="'+p.date+'"></label></div>'+
   '<div class="field"><label>Time<input name="time" type="time" value="'+p.time+'"></label></div>'+
@@ -197,7 +199,7 @@ function eventCard(event,caseMap={},clientMap={}){
  const links=(c?'<a class="link" href="case-detail.html?id='+encodeURIComponent(c.id)+'">'+esc(c.title||c.case_type)+'</a>':'')+
   (client?' · <a class="link" href="client-profile.html?id='+encodeURIComponent(client.id)+'">'+esc([client.first_name,client.last_name].filter(Boolean).join(' ')||client.organization_name||'Client')+'</a>':'');
  return '<div class="event-heading"><strong>'+esc(event.title||typeLabel(event.event_type))+'</strong><span class="event-kind">'+esc(typeLabel(event.event_type))+'</span></div>'+
-  '<p>'+esc(eventLabel(event))+'</p>'+(comments(event)?'<p class="event-comments">'+esc(comments(event))+'</p>':'')+(links?'<p>'+links+'</p>':'');
+  '<p>'+esc(eventLabel(event))+'</p>'+(event.completed_at?'<p class="completed-badge">✓ Completed — '+esc(event.completion_outcome)+'</p>':'')+(comments(event)?'<p class="event-comments">'+esc(comments(event))+'</p>':'')+(links?'<p>'+links+'</p>':'');
 }
 async function caseDates(container,caseRecord){
  await timezone();
@@ -221,7 +223,7 @@ async function caseDates(container,caseRecord){
   }
  };
  const refresh=async()=>{events=await caseEvents(caseRecord.id);render();};
- if(allowed)for(const [type,label] of [['court','＋ Court Date'],['legal_deadline','＋ Legal Date']]){
+ if(allowed)for(const [type,label] of [['court','＋ Court Date'],['appointment','＋ Appointment']]){
   const button=document.createElement('button');button.type='button';button.className='btn btn-secondary btn-small';button.textContent=label;
   button.onclick=()=>editEvent(null,{type,caseId:caseRecord.id,clientId:caseRecord.client_id},refresh);
   container.querySelector('#caseDateActions').appendChild(button);
@@ -230,7 +232,7 @@ async function caseDates(container,caseRecord){
 }
 function nextEvent(events,type){
  const today=parts(Date.now()).date;
- return events.filter(e=>e.event_type===type&&eventParts(e).date>=today).sort((a,b)=>new Date(a.start_at)-new Date(b.start_at))[0];
+ return events.filter(e=>!e.completed_at&&(e.event_type==='legal_deadline'?'appointment':e.event_type)===type&&(e.all_day?eventParts(e).date>=today:new Date(e.start_at)>=new Date())).sort((a,b)=>new Date(a.start_at)-new Date(b.start_at))[0];
 }
 function dateCell(event){return event?esc(eventLabel(event))+(comments(event)?'<div class="sub">'+esc(comments(event))+'</div>':''):'—';}
 async function clientCaseList(container,clientId){
@@ -238,14 +240,14 @@ async function clientCaseList(container,clientId){
  const [cases,events]=await Promise.all([list('cases',q=>q.eq('client_id',clientId).order('created_at',{ascending:false}).order('id')),list('calendar_events',q=>q.eq('client_id',clientId).order('start_at').order('id'))]);
  container.innerHTML=cases.map(c=>{
   const dates=events.filter(e=>e.case_id===c.id);
-  return '<tr><td><a class="link" href="case-detail.html?id='+encodeURIComponent(c.id)+'">'+esc(c.title||c.case_type)+'</a></td><td>'+esc(c.case_number||'—')+'</td><td>'+esc(c.case_status)+'</td><td>'+dateCell(nextEvent(dates,'court'))+'</td><td>'+dateCell(nextEvent(dates,'legal_deadline'))+'</td></tr>';
+  return '<tr><td><a class="link" href="case-detail.html?id='+encodeURIComponent(c.id)+'">'+esc(c.title||c.case_type)+'</a></td><td>'+esc(c.case_number||'—')+'</td><td>'+esc(c.case_status)+'</td><td>'+dateCell(nextEvent(dates,'court'))+'</td><td>'+dateCell(nextEvent(dates,'appointment'))+'</td></tr>';
  }).join('')||'<tr><td colspan="5" class="empty">No cases visible for this client.</td></tr>';
 }
 async function directories(page){
  const [clients,cases]=await Promise.all([list('clients',q=>q.order('id')),list('cases',q=>q.order('created_at',{ascending:false}).order('id'))]);
  const clientMap=Object.fromEntries(clients.map(c=>[c.id,c]));
  let query=new URLSearchParams(location.search).get('q')||'',letter='ALL',status='Active';
- const name=c=>[c?.first_name,c?.last_name].filter(Boolean).join(' ')||c?.organization_name||'Unnamed Client';
+ const name=c=>c?.organization_name||[c?.first_name,c?.last_name].filter(Boolean).join(' ')||c?.organization_name||'Unnamed Client';
  const render=()=>{
   if(page==='clients'){
    $('clientsBody').innerHTML=clients.filter(c=>{
@@ -284,17 +286,17 @@ async function calendar(){
  $('calendarZone').textContent='Times: '+zone;
  const dateKey=(y,m,d)=>new Date(Date.UTC(y,m,d)).toISOString().slice(0,10);
  function visible(){
-  return [...state.events,...state.tasks].filter(e=>state.filter==='All'||({Court:'court',Legal:'legal_deadline',Task:'task',Appointment:'appointment'}[state.filter]===e.event_type));
+  return [...state.events,...state.tasks].filter(e=>state.filter==='All'||({Court:'court',Task:'task',Appointment:'appointment'}[state.filter]===e.event_type));
  }
  function details(){
   const target=$('calendarDetails');target.innerHTML='<h3>'+esc(dateLabel(state.selected))+'</h3>';
   const events=visible().filter(e=>eventParts(e).date===state.selected);
   if(!events.length)target.innerHTML+='<p class="empty">No items for this date and filter.</p>';
   for(const event of events){
-   const card=document.createElement('article');card.className='case-date-card';card.innerHTML=eventCard(event,caseMap,clientMap);
+   const card=document.createElement('article');card.className='case-date-card '+event.event_type;card.innerHTML=eventCard(event,caseMap,clientMap);
    if(event.event_type==='task'){
     const link=document.createElement('a');link.className='link';link.href=event.case_id?'case-detail.html?id='+event.case_id:'tasks.html';link.textContent='Open task';card.appendChild(link);
-   }else if(allowed){
+   }else if(allowed&&!event.completed_at){
     const edit=document.createElement('button');edit.type='button';edit.className='btn btn-secondary btn-small';edit.textContent='Edit Date';edit.onclick=()=>editEvent(event,{},loadMonth);
     const remove=document.createElement('button');remove.type='button';remove.className='btn btn-secondary btn-small';remove.textContent='Remove Date';remove.onclick=()=>confirmDelete('date',event.title,async()=>{await deleteRecord('calendar_events',event.id);await loadMonth();});
     const actions=document.createElement('div');actions.className='actions';actions.append(edit,remove);card.appendChild(actions);
@@ -335,7 +337,7 @@ async function calendar(){
     list('tasks',q=>q.gte('due_at',from).lt('due_at',to).order('due_at').order('id'))
    ]);
    if(version!==state.version)return;
-   state.events=events;
+   state.events=events.map(e=>({...e,event_type:e.event_type==='legal_deadline'?'appointment':e.event_type}));
    state.tasks=tasks.filter(t=>!['completed','cancelled'].includes(t.status)).map(t=>({...t,event_type:'task',start_at:t.due_at,all_day:false,description:t.description}));
    render();$('calendarLoadStatus').textContent='';
   }catch(error){if(version===state.version){$('calendarLoadStatus').textContent='Could not load this month. '+error.message;$('calendarWrap').replaceChildren();$('calendarDetails').replaceChildren();}}
