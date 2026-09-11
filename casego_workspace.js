@@ -267,16 +267,16 @@ async function dashboard(){
    const p=R.eventParts(e),date=new Date(p.date+'T12:00:00Z'),client=people[e.client_id]||people[matters[e.case_id]?.client_id];
    const type=e.event_type==='court'?'court':'appointment';
    const card=document.createElement('a');card.className='upcoming-date-card '+type;
-   card.href=e.case_id?'case-detail.html?id='+e.case_id+'#'+(type==='court'?'court':'appointments'):'calendar.html';
+   card.href=e.case_id?'case-detail.html?id='+e.case_id:'calendar.html';
    card.innerHTML='<span class="date-type-strip">'+(type==='court'?'COURT':'APPT')+'</span><span class="date-stack"><span>'+date.toLocaleString('en-US',{month:'short',timeZone:'UTC'}).toUpperCase()+'</span><strong>'+String(date.getUTCDate()).padStart(2,'0')+'</strong><small>'+esc(p.time?new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit',timeZone:await R.timezone()}).format(new Date(e.start_at)):'—')+'</small></span><span class="date-card-copy"><strong>'+esc(client?name(client):'Firm appointment')+'</strong><span>'+esc(e.title)+'</span></span><span class="date-chevron">›</span>';
    col.appendChild(card);
   }
   schedule.appendChild(col);
  }
  if(!upcoming.length)schedule.innerHTML='<p class="empty">No upcoming dates.</p>';
- $('attorneyTasks').innerHTML=open.slice(0,3).map(t=>'<a class="compact-row" href="tasks.html"><strong>'+esc(t.title)+'</strong><span>'+esc(t.priority)+(t.due_at?' · '+R.eventLabel({start_at:t.due_at,all_day:false}):'')+'</span></a>').join('')||'<p class="compact-empty">No open tasks. You’re all caught up.</p>';
- $('attentionCases').innerHTML=cases.filter(c=>c.case_status!=='closed').slice(0,3).map(c=>'<a class="compact-row" href="case-detail.html?id='+c.id+'"><strong>'+esc(name(people[c.client_id]))+'</strong><span>'+esc([c.case_type,c.title].filter(Boolean).join(' · '))+'</span><em>'+esc(c.case_status)+'</em></a>').join('')||'<p class="compact-empty">No active matters.</p>';
- $('recentActivity').innerHTML=notes.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3).map(n=>'<a class="compact-row" href="notes.html"><strong>'+esc(n.title||'Case note')+'</strong><span>'+esc(n.body)+'</span></a>').join('')||'<p class="compact-empty">No notes recorded.</p>';
+ $('attorneyTasks').innerHTML=open.slice(0,5).map(t=>'<a class="compact-row" href="tasks.html"><strong>'+esc(t.title)+'</strong><span>'+esc(t.priority)+(t.due_at?' · '+R.eventLabel({start_at:t.due_at,all_day:false}):'')+'</span></a>').join('')||'<p class="compact-empty">No open tasks. You’re all caught up.</p>';
+ $('attentionCases').innerHTML=cases.filter(c=>c.case_status!=='closed').slice(0,5).map(c=>'<a class="compact-row" href="case-detail.html?id='+c.id+'"><strong>'+esc(name(people[c.client_id]))+'</strong><span>'+esc([c.case_type,c.title].filter(Boolean).join(' · '))+'</span><em>'+esc(c.case_status)+'</em></a>').join('')||'<p class="compact-empty">No active matters.</p>';
+ $('recentActivity').innerHTML=notes.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,5).map(n=>'<a class="compact-row" href="notes.html"><strong>'+esc(n.title||'Case note')+'</strong><span>'+esc(n.body)+'</span></a>').join('')||'<p class="compact-empty">No notes recorded.</p>';
  const totals={draft:0,sent:0,paid:0,overdue:0};invoices.forEach(i=>{if(i.status in totals)totals[i.status]++;});
  $('invoicePipeline').innerHTML=Object.entries(totals).map(([k,v])=>'<a class="finance-row" href="invoices.html"><span><i class="dot '+k+'"></i>'+k[0].toUpperCase()+k.slice(1)+'</span><strong>'+v+'</strong></a>').join('');
  const invoiced=invoices.filter(i=>!['draft','void'].includes(i.status)).reduce((n,i)=>n+Number(i.total_amount||0),0),outstanding=Math.max(0,invoiced-payments.reduce((n,p)=>n+Number(p.amount||0),0)),unbilled=timeEntries.filter(x=>x.billable&&x.billing_status!=='invoiced').reduce((n,x)=>n+Number(x.hours||0)*Number(x.hourly_rate||0),0);
@@ -424,6 +424,12 @@ async function openCaseChooser(){
 function init(){
  document.querySelectorAll('a[href="add-client.html"]').forEach(a=>a.onclick=e=>{e.preventDefault();openIntake();});
  document.querySelectorAll('a[href="add-case.html"]').forEach(a=>a.onclick=e=>{e.preventDefault();openCaseChooser();});
+ const topbar=document.querySelector('.topbar');
+ if(topbar&&!document.querySelector('.casego-menu-toggle')){
+  const button=document.createElement('button');button.type='button';button.className='casego-menu-toggle';button.setAttribute('aria-label','Open navigation');button.textContent='☰';
+  button.onclick=()=>{const open=document.body.classList.toggle('casego-menu-open');button.textContent=open?'×':'☰';button.setAttribute('aria-label',open?'Close navigation':'Open navigation');};
+  topbar.appendChild(button);
+ }
 }
 window.CaseGOWorkspace={openIntake,openCaseChooser,intakePage,clientPage,casePage,dashboard,billingPage,init,clientForm,readClient,persistClient,dateHistory,completeCourt,toolbar};
 R.openIntake=openIntake;

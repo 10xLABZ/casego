@@ -38,7 +38,7 @@
       .select('role_id, roles(id,name,is_admin,is_system_template,firm_id)')
       .eq('user_id', profile.id);
     if(error){ console.warn('Unable to load CaseGO roles', error); return []; }
-    return (data || []).map(x=>x.roles).filter(Boolean);
+    return (data || []).flatMap(x=>Array.isArray(x.roles)?x.roles:[x.roles]).filter(Boolean);
   }
 
   async function loadFirm(firmId){
@@ -56,7 +56,7 @@
     if(!session?.user) return null;
     const { data: profile, error: profileError } = await client
       .from('profiles')
-      .select('id, firm_id, first_name, last_name, email, platform_role, active, job_title, phone, extension, profile_image_url, weather_location, timezone, theme_preference')
+      .select('id, firm_id, first_name, last_name, email, platform_role, active, job_title, experience, phone, extension, profile_image_url, weather_location, timezone, theme_preference')
       .eq('id', session.user.id)
       .single();
     if(profileError) throw profileError;
@@ -76,7 +76,13 @@
     window.casegoProfile = profile;
     window.casegoFirm = firm;
     window.casegoRoles = roles;
-    window.casegoIsFirmAdmin = profile.platform_role === 'system_admin' || roles.some(r=>r?.is_admin === true);
+    const effectiveFirmId=firm?.id||profile.firm_id;
+    let verifiedAdmin=profile.platform_role === 'system_admin' || roles.some(r=>r?.is_admin===true||r?.is_admin==='true');
+    if(!verifiedAdmin&&effectiveFirmId){
+      const {data}=await client.rpc('is_casego_admin_for_firm',{requested_firm:effectiveFirmId});
+      verifiedAdmin=data===true;
+    }
+    window.casegoIsFirmAdmin = verifiedAdmin;
     return {session, profile, firm, roles, isFirmAdmin: window.casegoIsFirmAdmin};
   }
 

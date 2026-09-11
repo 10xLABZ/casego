@@ -744,3 +744,25 @@ body.casego-dark .dash-kpi,body.casego-dark .intake-hub-options button{backgroun
 @media(max-width:1400px){.dash-six-kpis{grid-template-columns:repeat(3,1fr)}.dash-kpi{height:92px}.dash-middle{height:auto;grid-template-columns:1fr}.dash-middle .upcoming-date-columns{height:auto}.dash-lower{height:auto}.intake-hub{height:auto}.attorney-dashboard{height:auto;overflow:visible}body:has(.attorney-dashboard){overflow:auto}body:has(.attorney-dashboard) .footer{position:static}}
 @media(max-width:800px){.dash-six-kpis,.dash-lower,.dash-finance-row,.intake-hub-options{grid-template-columns:1fr}.dash-middle{display:block}.dash-middle-right{margin-top:10px}.intake-hub{height:auto}.dash-heading{height:auto;flex-direction:column;margin-bottom:12px}}
 
+/* v0.6.6 responsive dashboard, accessible zoom and mobile navigation */
+.casego-menu-toggle{display:none;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;width:42px;height:42px;font-size:23px;line-height:1;cursor:pointer}
+.settings-collapsible-head{cursor:pointer}.settings-collapsible-head:focus-visible{outline:3px solid rgba(8,120,255,.3);outline-offset:-3px}.settings-collapsible-head .settings-chevron{margin-left:auto;flex:0 0 auto}
+@media(max-width:1400px), (max-height:860px){
+ body:has(.attorney-dashboard){overflow-y:auto!important}.main{min-height:100vh}.attorney-dashboard{height:auto!important;overflow:visible!important;padding-bottom:18px}
+ body:has(.attorney-dashboard) .footer{position:static!important;height:auto!important;margin:0!important}
+ .dash-six-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}.dash-kpi{height:auto!important;min-height:105px;overflow:visible}
+ .dash-middle{height:auto!important;grid-template-columns:1fr!important}.dash-middle-right{grid-template-rows:auto auto}.dash-middle .upcoming-date-columns{height:auto!important;grid-template-columns:1fr}.dash-middle .upcoming-date-column:nth-child(2){display:none}
+ .dash-middle .upcoming-date-card{height:auto!important;min-height:62px}.dash-middle-right>.panel,.dash-finance-row>.panel{min-height:190px}
+ .dash-lower{height:auto!important}.dash-lower .compact-list{height:auto!important;min-height:170px;overflow:visible}.intake-hub{height:auto!important;overflow:visible}
+}
+@media(max-width:900px){
+ .dash-six-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.dash-lower{grid-template-columns:1fr!important}.dash-finance-row{grid-template-columns:1fr!important}
+}
+@media(max-width:720px){
+ body{padding-bottom:42px}.app{display:block}.casego-menu-toggle{display:grid;place-items:center;order:10}.topbar{height:auto;min-height:68px;gap:9px;flex-wrap:nowrap;padding:10px 12px}.topbar .search{display:block;max-width:none;flex:1}.topbar .search input{width:100%;min-width:0}.topbar-spacer,.compact-top,.notification-bell,.top-user,.casego-signout{display:none!important}
+ .sidebar{display:none;position:fixed;z-index:40;left:0;top:0;width:min(310px,84vw);height:100dvh;overflow-y:auto;padding-top:78px;box-shadow:15px 0 35px rgba(0,0,0,.3)}body.casego-menu-open .sidebar{display:flex}body.casego-menu-open:after{content:"";position:fixed;z-index:35;inset:0;background:rgba(0,0,0,.48)}body.casego-menu-open .casego-menu-toggle{position:fixed;z-index:50;right:12px;top:12px;background:var(--navy)}
+ .sidebar .brand{display:none}.sidebar .nav a span:not(.ico),.sidebar .firm-card{display:block}.sidebar .nav a{justify-content:flex-start}
+ .attorney-dashboard{padding:14px 12px 20px}.dash-heading .actions{width:100%}.dash-heading .actions .btn{flex:1}.dash-six-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.dash-kpi{min-height:116px;padding:11px}.dash-kpi>strong{font-size:23px}.dash-middle-right{margin-top:10px}.intake-hub-options{grid-template-columns:1fr!important}
+ .footer{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:20;height:42px!important;margin:0!important;padding:12px 8px!important}
+}
+
