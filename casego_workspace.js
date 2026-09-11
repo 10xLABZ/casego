@@ -1,4 +1,4 @@
-/* CaseGO v0.6.4 — intake, court history and shared record actions. */
+/* CaseGO v0.6.5 — intake, billing, court history and shared record actions. */
 (function(){
 'use strict';
 const R=window.CaseGORecords,$=id=>document.getElementById(id),sb=()=>window.casegoSupabase;
@@ -11,7 +11,7 @@ const field=(label,key,value='',type='text',required=false)=>'<label class="fiel
 const area=(label,key,value='')=>'<label class="field">'+esc(label)+'<textarea name="'+key+'">'+esc(value)+'</textarea></label>';
 const select=(label,key,options,value='')=>'<label class="field">'+esc(label)+'<select name="'+key+'">'+options.map(o=>{const [v,t]=Array.isArray(o)?o:[o,o];return '<option value="'+esc(v)+'" '+(v===value?'selected':'')+'>'+esc(t)+'</option>';}).join('')+'</select></label>';
 function errorText(e){
- if(e?.code==='PGRST202'||e?.code==='PGRST204'||e?.code==='42703')return 'This version needs its database update first. Run CASEGO_v0.6.4_RUN_FIRST.sql in the CaseGO Supabase project, then reload.';
+ if(e?.code==='PGRST202'||e?.code==='PGRST204'||e?.code==='42703')return 'This version needs its database update first. Run CASEGO_v0.6.5_RUN_FIRST.sql in the CaseGO Supabase project, then reload.';
  return e?.message||String(e);
 }
 function modal(title,className=''){
@@ -64,7 +64,7 @@ function clientForm(client={},phones=[],isNew=true){
  };
  form.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>setType(b.dataset.kind));
  setType(client.client_type||(client.organization_name?'organization':'individual'));
- form.querySelectorAll('[data-reveal]').forEach(b=>{const input=form.elements[b.dataset.reveal];input.autocomplete='off';input.inputMode='numeric';b.onclick=()=>{input.type=input.type==='password'?'text':'password';b.textContent=(input.type==='password'?'Show ':'Hide ')+b.dataset.reveal.toUpperCase();};});
+ form.querySelectorAll('[data-reveal]').forEach(b=>{const input=form.elements[b.dataset.reveal];input.autocomplete='off';b.onclick=()=>{input.type=input.type==='password'?'text':'password';b.textContent=(input.type==='password'?'Show ':'Hide ')+b.dataset.reveal.toUpperCase();};});
  const phoneList=form.querySelector('[data-phones]');
  const actual=phones.length?phones:client.phone?[{phone_number:client.phone,is_primary:true}]:[{is_primary:true}];
  actual.forEach(p=>phoneList.appendChild(phoneRow(p)));
@@ -74,7 +74,7 @@ function clientForm(client={},phones=[],isNew=true){
 function readClient(form){
  const fd=new FormData(form),kind=val(fd,'client_type'),payload={firm_id:firm(),client_type:kind,country:'US'};
  for(const key of ['first_name','middle_name','last_name','date_of_birth','organization_name','corporate_structure','registered_agent','industry','preferred_language','email','status','address_line1','address_line2','city','state','postal_code','notes'])payload[key]=val(fd,key)||null;
- for(const key of ['ssn','ein']){const raw=val(fd,key);if(raw&&!/^[0-9 -]+$/.test(raw))throw new Error('Use 9 digits for '+key.toUpperCase()+'.');payload[key]=raw.replace(/[ -]/g,'')||null;if(payload[key]&&!/^\d{9}$/.test(payload[key]))throw new Error(key.toUpperCase()+' must contain 9 digits.');}
+ for(const key of ['ssn','ein'])payload[key]=val(fd,key)||null;
  if(kind==='individual'&&(!payload.first_name||!payload.last_name))throw new Error('First and last name are required.');
  if(kind==='organization'&&!payload.organization_name)throw new Error('Organization name is required.');
  const phones=[...form.querySelectorAll('[data-phone-row]')].map(row=>({
@@ -241,20 +241,25 @@ async function dateHistory(container,caseRecord,type){
 }
 async function dashboard(){
  await R.timezone();
- const [clients,cases,events,tasks,notes]=await Promise.all(['clients','cases','calendar_events','tasks','notes'].map(t=>R.list(t,q=>q.order('id'))));
+ const [clients,cases,events,tasks,notes,invoices,payments,timeEntries]=await Promise.all(['clients','cases','calendar_events','tasks','notes','invoices','payments','time_entries'].map(t=>R.list(t,q=>q.order('id'))));
  const people=Object.fromEntries(clients.map(c=>[c.id,c])),matters=Object.fromEntries(cases.map(c=>[c.id,c]));
  const today=R.parts(Date.now()).date;
  const upcoming=events.filter(e=>!e.completed_at&&['court','appointment','legal_deadline'].includes(e.event_type)&&
   (e.all_day?R.eventParts(e).date>=today:new Date(e.start_at)>=new Date())).sort((a,b)=>new Date(a.start_at)-new Date(b.start_at));
  const open=tasks.filter(t=>!['completed','cancelled'].includes(t.status));
- const isAdmin=window.casegoIsFirmAdmin;
- document.querySelector('.attorney-welcome h1').textContent=isAdmin?'Firm Overview':'My Workspace';
+ const isAdmin=window.casegoIsFirmAdmin,heading=document.querySelector('.dash-heading h1');
+ heading.textContent=isAdmin?'Firm Overview':'My Workspace';
  $('dashDate').textContent=(window.casegoFirm?.name||'CaseGO')+' · '+new Intl.DateTimeFormat('en-US',{dateStyle:'full',timeZone:await R.timezone()}).format(new Date());
  for(const [id,v] of Object.entries({kpiToday:upcoming.length,todayEventCount:upcoming.length,todayTaskCount:open.length,kpiTasks:open.length,kpiCases:cases.filter(c=>c.case_status==='active').length,kpiDeadlines:clients.filter(c=>c.status==='active').length}))if($(id))$(id).textContent=v;
  $('kpiNext').textContent=upcoming[0]?R.eventLabel(upcoming[0]):'No upcoming dates';
  $('kpiHigh').textContent=open.filter(t=>['high','urgent'].includes(t.priority)).length+' high priority';
  $('kpiDeadlineNext').textContent=clients.filter(c=>c.client_type!=='organization').length+' individuals · '+clients.filter(c=>c.client_type==='organization').length+' organizations';
  $('kpiAttention').textContent=cases.length+' visible cases';
+ const month=today.slice(0,7),monthEntries=timeEntries.filter(x=>String(x.work_date).slice(0,7)===month&&x.billable),monthPayments=payments.filter(x=>String(x.payment_date).slice(0,7)===month);
+ const hours=monthEntries.reduce((n,x)=>n+Number(x.hours||0),0),revenue=monthPayments.reduce((n,x)=>n+Number(x.amount||0),0);
+ $('kpiHours').textContent=hours.toFixed(1);$('kpiRevenue').textContent=money(revenue);
+ $('hoursChart').innerHTML=[.35,.55,.42,.7,.6,.85,.72].map((h,i)=>'<i style="height:'+Math.round(h*28)+'px"></i>').join('');
+ $('revenueProgress').style.width=Math.min(100,revenue?62:0)+'%';
  const schedule=$('attorneySchedule');schedule.className='upcoming-date-columns';schedule.replaceChildren();
  for(const group of [upcoming.slice(0,5),upcoming.slice(5,10)]){
   const col=document.createElement('div');col.className='upcoming-date-column';
@@ -269,9 +274,13 @@ async function dashboard(){
   schedule.appendChild(col);
  }
  if(!upcoming.length)schedule.innerHTML='<p class="empty">No upcoming dates.</p>';
- $('attorneyTasks').innerHTML=open.slice(0,5).map(t=>'<div class="cg-row"><div><strong>'+esc(t.title)+'</strong><p class="sub">'+esc(t.priority)+(t.due_at?' · '+R.eventLabel({start_at:t.due_at,all_day:false}):'')+'</p></div></div>').join('')||'<p class="empty">No open tasks.</p>';
- $('attentionCases').innerHTML=cases.filter(c=>c.case_status!=='closed').slice(0,5).map(c=>'<a class="cg-row active-matter-row" href="case-detail.html?id='+c.id+'"><strong>'+esc(name(people[c.client_id]))+'</strong><span>'+esc([c.case_type,c.title,c.case_number].filter(Boolean).join(' · '))+'</span><small>'+esc(c.case_status)+'</small></a>').join('')||'<p class="empty">No active matters.</p>';
- $('recentActivity').innerHTML=notes.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,4).map(n=>'<div class="cg-row"><strong>'+esc(n.title||'Case note')+'</strong><p class="sub">'+esc(n.body)+'</p></div>').join('')||'<p class="empty">No notes recorded.</p>';
+ $('attorneyTasks').innerHTML=open.slice(0,3).map(t=>'<a class="compact-row" href="tasks.html"><strong>'+esc(t.title)+'</strong><span>'+esc(t.priority)+(t.due_at?' · '+R.eventLabel({start_at:t.due_at,all_day:false}):'')+'</span></a>').join('')||'<p class="compact-empty">No open tasks. You’re all caught up.</p>';
+ $('attentionCases').innerHTML=cases.filter(c=>c.case_status!=='closed').slice(0,3).map(c=>'<a class="compact-row" href="case-detail.html?id='+c.id+'"><strong>'+esc(name(people[c.client_id]))+'</strong><span>'+esc([c.case_type,c.title].filter(Boolean).join(' · '))+'</span><em>'+esc(c.case_status)+'</em></a>').join('')||'<p class="compact-empty">No active matters.</p>';
+ $('recentActivity').innerHTML=notes.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3).map(n=>'<a class="compact-row" href="notes.html"><strong>'+esc(n.title||'Case note')+'</strong><span>'+esc(n.body)+'</span></a>').join('')||'<p class="compact-empty">No notes recorded.</p>';
+ const totals={draft:0,sent:0,paid:0,overdue:0};invoices.forEach(i=>{if(i.status in totals)totals[i.status]++;});
+ $('invoicePipeline').innerHTML=Object.entries(totals).map(([k,v])=>'<a class="finance-row" href="invoices.html"><span><i class="dot '+k+'"></i>'+k[0].toUpperCase()+k.slice(1)+'</span><strong>'+v+'</strong></a>').join('');
+ const invoiced=invoices.filter(i=>!['draft','void'].includes(i.status)).reduce((n,i)=>n+Number(i.total_amount||0),0),outstanding=Math.max(0,invoiced-payments.reduce((n,p)=>n+Number(p.amount||0),0)),unbilled=timeEntries.filter(x=>x.billable&&x.billing_status!=='invoiced').reduce((n,x)=>n+Number(x.hours||0)*Number(x.hourly_rate||0),0);
+ $('financialHealth').innerHTML='<div class="finance-row"><span>MTD Payments</span><strong>'+money(revenue)+'</strong></div><div class="finance-row"><span>Outstanding</span><strong>'+money(outstanding)+'</strong></div><div class="finance-row"><span>Unbilled Time</span><strong>'+money(unbilled)+'</strong></div>';
  $('dashboardMessages').innerHTML='<p class="empty">No connected messaging service.</p>';
 }
 function activateTabs(){
@@ -306,6 +315,16 @@ async function casePage(){
  $('caseTitle').textContent=name(client);$('caseMeta').textContent=[c.case_type,c.title,c.case_number].filter(Boolean).join(' · ');
  $('caseStatusDisplay').textContent=c.case_status;
  const form=$('caseForm');
+ if(!form.querySelector('[name="billingType"]')){
+  const save=form.querySelector('button[type="submit"],button:not([type])');
+  save.insertAdjacentHTML('beforebegin','<div class="hr"></div><section class="case-billing-config"><h3 class="section-title">Billing Arrangement</h3><div class="form-grid-3">'+
+   select('Billing Type','billingType',[['flat_fee','Flat Fee'],['hourly','Hourly'],['hybrid','Hybrid'],['no_charge','No Charge / Pro Bono']],c.billing_type||'flat_fee')+
+   field('Flat Fee / Base Fee','flatFeeAmount',c.flat_fee_amount??'','number')+field('Case Hourly Rate','caseHourlyRate',c.hourly_rate??'','number')+
+   field('Hybrid Included Hours','hybridIncludedHours',c.hybrid_included_hours??'','number')+'</div><p class="sub">Case rate overrides the attorney rate, which overrides the firm default rate. Flat-fee matters may still track internal time.</p></section>');
+  form.querySelectorAll('.case-billing-config input[type="number"]').forEach(x=>{x.min='0';x.step='0.01';});
+  const toggleBilling=()=>{const type=form.elements.billingType.value;form.elements.flatFeeAmount.closest('.field').hidden=!['flat_fee','hybrid'].includes(type);form.elements.caseHourlyRate.closest('.field').hidden=!['hourly','hybrid'].includes(type);form.elements.hybridIncludedHours.closest('.field').hidden=type!=='hybrid';};
+  form.elements.billingType.onchange=toggleBilling;toggleBilling();
+ }
  for(const [key,column] of Object.entries({caseType:'case_type',subCaseType:'title',caseNumber:'case_number',caseStatus:'case_status',caseNotes:'description',primaryAttorney:'assigned_attorney_id',accessScope:'access_scope'})){
   if(form.elements[key])form.elements[key].value=c[column]||'';
  }
@@ -318,7 +337,7 @@ async function casePage(){
  if(!canEdit)form.querySelectorAll('input,select,textarea,button').forEach(x=>x.disabled=true);
  let busy=false;form.onsubmit=async e=>{
   e.preventDefault();if(busy||!canEdit||!form.reportValidity())return;busy=true;
-  const fd=new FormData(form),payload={case_type:val(fd,'caseType'),title:val(fd,'subCaseType')||val(fd,'caseType'),case_number:val(fd,'caseNumber')||null,case_status:val(fd,'caseStatus'),description:val(fd,'caseNotes')||null,assigned_attorney_id:val(fd,'primaryAttorney')||null,access_scope:val(fd,'accessScope')};
+  const fd=new FormData(form),num=k=>val(fd,k)===''?null:Number(val(fd,k)),payload={case_type:val(fd,'caseType'),title:val(fd,'subCaseType')||val(fd,'caseType'),case_number:val(fd,'caseNumber')||null,case_status:val(fd,'caseStatus'),description:val(fd,'caseNotes')||null,assigned_attorney_id:val(fd,'primaryAttorney')||null,access_scope:val(fd,'accessScope'),billing_type:val(fd,'billingType'),flat_fee_amount:num('flatFeeAmount'),hourly_rate:num('caseHourlyRate'),hybrid_included_hours:num('hybridIncludedHours')};
   try{
    const {data,error}=await sb().from('cases').update(payload).eq('id',id).eq('firm_id',firm()).select('id');if(error)throw error;if(data?.length!==1)throw new Error('Case was not updated. Check access.');
    Object.assign(c,payload);await window.CaseGOCore.saveTeam(id,payload.assigned_attorney_id);
@@ -332,7 +351,16 @@ async function casePage(){
  toolbar($('caseActions'),report,{save:canEdit?()=>form.requestSubmit():null});
  await R.recordGear($('caseActions'),'case',c,()=>{location.href='client-profile.html?id='+c.client_id;});
  activateTabs();
- await Promise.all([dateHistory($('caseDatesPanel'),c,'court'),dateHistory($('appointmentsPanel'),c,'appointment'),relatedLists(c)]);
+ await Promise.all([dateHistory($('caseDatesPanel'),c,'court'),dateHistory($('appointmentsPanel'),c,'appointment'),relatedLists(c),timeEntryPanel(c)]);
+}
+async function timeEntryPanel(c){
+ const billing=$('case-panel-billing');if(!billing)return;
+ let section=$('caseTimeEntriesSection');if(!section){section=document.createElement('section');section.className='panel';section.id='caseTimeEntriesSection';section.innerHTML='<div class="panel-head">TIME ENTRIES</div><div class="panel-body"><div id="caseTimeEntriesList"></div><form id="caseTimeEntryForm" class="compact-time-form"><div class="form-grid-3">'+field('Work Date','work_date',new Date().toISOString().slice(0,10),'date',true)+field('Hours','hours','','number',true)+field('Description','description','','text',true)+'</div><label class="intake-next"><input type="checkbox" name="billable" checked> Billable</label><p data-status class="record-error"></p><button class="btn btn-primary btn-small">Add Time Entry</button></form></div>';billing.prepend(section);section.querySelector('[name="hours"]').step='.1';section.querySelector('[name="hours"]').min='.01';}
+ const rows=await R.list('time_entries',q=>q.eq('case_id',c.id).order('work_date',{ascending:false}).order('id'));
+ $('caseTimeEntriesList').innerHTML=rows.map(x=>'<div class="compact-row"><strong>'+esc(x.work_date)+' · '+Number(x.hours).toFixed(2)+' hours</strong><span>'+esc(x.description)+'</span><em>'+(x.billable?money(Number(x.hours)*Number(x.hourly_rate)):'Internal')+'</em></div>').join('')||'<p class="compact-empty">No time entered.</p>';
+ const form=$('caseTimeEntryForm');if(form.dataset.wired)return;form.dataset.wired='1';
+ if(!await R.can('billing.manage')){form.hidden=true;return;}
+ form.onsubmit=async ev=>{ev.preventDefault();const fd=new FormData(form);try{let rate=c.hourly_rate; if(rate==null&&c.assigned_attorney_id){const {data}=await sb().from('profiles').select('hourly_rate').eq('id',c.assigned_attorney_id).maybeSingle();rate=data?.hourly_rate;}if(rate==null){const {data}=await sb().from('firm_settings').select('default_hourly_rate').eq('firm_id',firm()).maybeSingle();rate=data?.default_hourly_rate;}const billable=fd.get('billable')==='on',payload={firm_id:firm(),case_id:c.id,user_id:window.casegoProfile.id,work_date:val(fd,'work_date'),hours:Number(val(fd,'hours')),description:val(fd,'description'),billable,hourly_rate:Number(rate||0),billing_status:billable?'draft':'nonbillable',created_by:window.casegoProfile.id};const {error}=await sb().from('time_entries').insert(payload);if(error)throw error;form.reset();form.elements.work_date.value=new Date().toISOString().slice(0,10);form.elements.billable.checked=true;form.dataset.wired='';await timeEntryPanel(c);}catch(e){feedback(form,errorText(e));}};
 }
 async function relatedLists(c){
  for(const [table,id,title,columns] of [
