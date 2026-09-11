@@ -1,4 +1,4 @@
-/* CaseGO v0.6.7 — responsive dashboard and related case/client records. */
+/* CaseGO v0.6.9 — compact client/case workspaces and communication records. */
 (function(){
 'use strict';
 const R=window.CaseGORecords,$=id=>document.getElementById(id),sb=()=>window.casegoSupabase;
@@ -298,7 +298,7 @@ async function openRelatedCreate(kind,context,done){
  if(!await R.can(permission)){window.alert('Your role cannot add '+kind+'s.');return;}
  const labels={task:'Task',note:'Note',expense:'Expense'},label=labels[kind],d=modal('Add '+label),form=document.createElement('form');
  if(kind==='task')form.innerHTML=field('Task Title','title','','text',true)+area('Description','description')+'<div class="form-grid-3">'+field('Due Date','due_date','','date')+field('Due Time','due_time','','time')+select('Priority','priority',['low','normal','high','urgent'],'normal')+'</div>';
- if(kind==='note')form.innerHTML=field('Note Title','title')+select('Note Type','note_type',['general','client','case','phone_call','meeting','email','internal'],context.caseId?'case':'client')+area('Note','body','') ;
+ if(kind==='note')form.innerHTML=field('Note Title','title')+select('Note Type','note_type',['general','client','case','research','strategy','internal'],context.caseId?'case':'client')+area('Note','body','') ;
  if(kind==='expense')form.innerHTML='<div class="form-grid-3">'+field('Expense Date','expense_date',new Date().toISOString().slice(0,10),'date',true)+field('Category','category')+field('Amount','amount','','number',true)+'</div>'+area('Description','description')+'<label class="intake-next"><input type="checkbox" name="billable"> Bill this expense to the client</label>';
  form.innerHTML+='<p class="record-error" data-status role="status"></p><div class="actions"><button type="button" class="btn btn-secondary" data-cancel>Cancel</button><button class="btn btn-primary">Add '+label+'</button></div>';d.body.appendChild(form);
  if(kind==='expense'){form.elements.amount.min='0';form.elements.amount.step='0.01';}
@@ -449,6 +449,95 @@ async function openCaseChooser(){
   d.body.querySelector('form').onsubmit=e=>{e.preventDefault();location.href='add-case.html?clientId='+encodeURIComponent(new FormData(e.target).get('client'));};
  }catch(e){window.alert(errorText(e));}
 }
+
+/* v0.6.9 compact client and case workspaces */
+const activityLabels={task:'Tasks',note:'Notes',communication:'Communications',expense:'Expenses'};
+function shortDate(value,withTime=false){
+ if(!value)return '—';
+ const d=new Date(value.length===10?value+'T12:00:00':value);
+ return new Intl.DateTimeFormat('en-US',withTime?{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}:{month:'short',day:'numeric',year:'numeric'}).format(d);
+}
+function personLabel(p){return p?[(p.first_name?.[0]||'').toUpperCase()+(p.first_name?'.':''),p.last_name].filter(Boolean).join(' ')||p.email||'—':'—';}
+function communicationMethod(value){return ({phone:'Phone Call',voicemail:'Voicemail',email:'Email',sms:'SMS',in_person:'In Person',internal:'Internal',other:'Other'})[value]||'Communication';}
+async function openCommunication(context,done){
+ if(!await R.can('communications.manage')){window.alert('Your role cannot add communications.');return;}
+ const d=modal('Add Communication'),form=document.createElement('form'),now=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+ form.innerHTML='<div class="form-grid-3">'+select('Method','communication_type',[['phone','Phone Call'],['voicemail','Voicemail'],['email','Email'],['sms','SMS'],['in_person','In Person'],['other','Other']],'phone')+select('Direction','direction',[['inbound','Incoming'],['outbound','Outgoing']],'inbound')+field('Date & Time','occurred_at',now,'datetime-local',true)+'</div>'+field('Subject (optional)','subject')+area('Description / Details','body')+'<p class="sub">Entered by '+esc([window.casegoProfile?.first_name,window.casegoProfile?.last_name].filter(Boolean).join(' ')||window.casegoProfile?.email||'signed-in user')+'</p><p class="record-error" data-status role="status"></p><div class="actions"><button type="button" class="btn btn-secondary" data-cancel>Cancel</button><button class="btn btn-primary">Add Communication</button></div>';
+ d.body.appendChild(form);form.querySelector('[data-cancel]').onclick=()=>d.close();form.oninput=()=>{d.dirty=true;};
+ form.onsubmit=async ev=>{ev.preventDefault();if(d.busy||!form.reportValidity())return;d.busy=true;try{const fd=new FormData(form),payload={firm_id:firm(),client_id:context.clientId||null,case_id:context.caseId||null,communication_type:val(fd,'communication_type'),direction:val(fd,'direction'),subject:val(fd,'subject')||null,body:val(fd,'body'),occurred_at:new Date(val(fd,'occurred_at')).toISOString(),created_by:window.casegoProfile.id};if(!payload.body)throw new Error('Enter the communication details.');const {error}=await sb().from('communications').insert(payload);if(error)throw error;d.dirty=false;d.busy=false;d.close(true);await done();}catch(e){feedback(form,errorText(e));}finally{d.busy=false;}};
+}
+async function activityRows(scope){
+ const clause=q=>scope.caseId?q.eq('case_id',scope.caseId):q.eq('client_id',scope.clientId);
+ const [tasks,notes,communications,expenses,profiles]=await Promise.all([
+  R.list('tasks',q=>clause(q).order('created_at',{ascending:false}).order('id')),
+  R.list('notes',q=>clause(q).order('created_at',{ascending:false}).order('id')),
+  R.list('communications',q=>clause(q).order('occurred_at',{ascending:false}).order('id')),
+  R.list('expenses',q=>clause(q).order('created_at',{ascending:false}).order('id')),
+  R.list('profiles',q=>q.order('id'))
+ ]);
+ const people=Object.fromEntries(profiles.map(p=>[p.id,p]));
+ return {task:tasks,note:notes,communication:communications,expense:expenses,people};
+}
+function activityRowHTML(kind,row,people){
+ if(kind==='task')return '<strong>'+esc(row.title||'Task')+'</strong><span>'+esc(row.status||'open')+(row.due_at?' · '+esc(shortDate(row.due_at)):'')+'</span>';
+ if(kind==='note')return '<strong>'+esc(row.title||'Note')+'</strong><span>'+esc(shortDate(row.created_at))+' · '+esc(row.body||'')+'</span>';
+ if(kind==='communication')return '<strong>'+esc(communicationMethod(row.communication_type))+'</strong><span>'+esc(shortDate(row.occurred_at,true))+' · '+esc(personLabel(people[row.created_by]))+'</span><small>'+esc(row.body||row.subject||'')+'</small>';
+ return '<strong>'+esc(row.description||row.category||'Expense')+'</strong><span>'+esc(shortDate(row.expense_date))+' · '+esc(money(row.amount))+'</span>';
+}
+async function showAllActivity(kind,rows,people){
+ const d=modal(activityLabels[kind]);
+ d.body.innerHTML='<div class="activity-full-list">'+(rows.map(row=>'<article class="activity-row">'+activityRowHTML(kind,row,people)+'</article>').join('')||'<p class="empty">No records.</p>')+'</div>';
+}
+async function renderActivityGrid(scope){
+ const host=$('recordActivityGrid');if(!host)return;const data=await activityRows(scope);
+ for(const kind of ['task','note','communication','expense']){
+  const card=host.querySelector('[data-activity="'+kind+'"]'),list=card.querySelector('[data-activity-list]'),rows=data[kind];
+  list.innerHTML=rows.slice(0,3).map(row=>'<article class="activity-row">'+activityRowHTML(kind,row,data.people)+'</article>').join('')||'<p class="activity-empty">No '+activityLabels[kind].toLowerCase()+' recorded.</p>';
+  card.querySelector('[data-add-new]').onclick=()=>kind==='communication'?openCommunication(scope,()=>renderActivityGrid(scope)):openRelatedCreate(kind,scope,()=>renderActivityGrid(scope));
+  card.querySelector('[data-view-all]').onclick=()=>showAllActivity(kind,rows,data.people);
+ }
+}
+function activityGridHTML(){return '<section class="record-activity-grid" id="recordActivityGrid">'+['task','note','communication','expense'].map(kind=>'<article class="activity-card" data-activity="'+kind+'"><header><strong>'+activityLabels[kind]+'</strong><button type="button" data-add-new>＋ ADD NEW</button></header><div data-activity-list></div><button type="button" class="activity-view-all" data-view-all>VIEW ALL →</button></article>').join('')+'</section>';}
+function profileFormLayout(form,kind){
+ form.classList.add('profile-compact-form');
+ const common=form.querySelector('.form-grid-3');common.classList.add('profile-common-grid');
+ for(const key of ['ssn','ein']){const input=form.elements[key];if(!input)continue;const box=input.closest('.field'),button=form.querySelector('[data-reveal="'+key+'"]');box.dataset.profileKind=key==='ssn'?'individual':'organization';button.dataset.profileKind=box.dataset.profileKind;common.append(box,button);}
+ const sync=()=>common.querySelectorAll('[data-profile-kind]').forEach(x=>x.hidden=x.dataset.profileKind!==form.elements.client_type.value);
+ form.querySelectorAll('[data-kind]').forEach(b=>b.addEventListener('click',()=>setTimeout(sync)));sync();
+}
+async function clientPageV069(){
+ const id=new URLSearchParams(location.search).get('id'),content=document.querySelector('.content');
+ const {data:c,error}=await sb().from('clients').select('*').eq('id',id).eq('firm_id',firm()).single();if(error)throw error;
+ const phones=await R.list('client_phones',q=>q.eq('client_id',id).order('created_at').order('id'));
+ content.classList.add('record-workspace');content.innerHTML='<div class="record-page-head"><div><h1 id="clientName"></h1><p id="clientMeta"></p></div><div class="actions" id="clientActions"><a class="btn btn-primary" id="clientAddCase">＋ Add Case</a></div></div><div class="client-overview-grid"><section class="form-card record-information-card" id="clientEditorMount"></section><aside class="panel active-cases-card"><div class="panel-head"><span>ACTIVE CASES <b id="activeCaseCount"></b></span><a id="allClientCases">View All Cases</a></div><div id="activeCaseCards"></div></aside></div>'+activityGridHTML();
+ $('clientName').textContent=name(c);$('clientMeta').textContent=(c.client_type==='organization'?'Organization':'Individual')+' · '+c.status;
+ const form=clientForm(c,phones,false);profileFormLayout(form,c.client_type);$('clientEditorMount').replaceChildren(form);
+ const canEdit=await R.can('clients.edit');if(!canEdit)form.querySelectorAll('input,select,textarea,button').forEach(x=>x.disabled=true);else wireClientForm(form,{id,isNew:false},saved=>{Object.assign(c,saved.payload);$('clientName').textContent=name(c);feedback(form,'Client and phones saved.');},()=>location.href='clients.html');
+ const report=()=>snapshot(name(c),[{title:'Client',rows:Object.entries(c).filter(([k])=>!k.endsWith('_id')).map(([k,v])=>[k.replaceAll('_',' '),v])}]);toolbar($('clientActions'),report,{save:canEdit?()=>form.requestSubmit():null});$('clientAddCase').href='add-case.html?clientId='+encodeURIComponent(id);await R.recordGear($('clientActions'),'client',c,()=>location.href='clients.html');
+ const [cases,events]=await Promise.all([R.list('cases',q=>q.eq('client_id',id).order('created_at',{ascending:false}).order('id')),R.list('calendar_events',q=>q.eq('client_id',id).order('start_at').order('id'))]);const active=cases.filter(x=>x.case_status!=='closed');$('activeCaseCount').textContent='('+active.length+')';$('allClientCases').href='cases.html';
+ $('activeCaseCards').innerHTML=active.slice(0,3).map(x=>{const next=events.find(e=>e.case_id===x.id&&!e.completed_at&&new Date(e.start_at)>=new Date());return '<a class="active-case-row" href="case-detail.html?id='+x.id+'"><span class="case-state '+esc(x.case_status)+'">'+esc(x.case_status)+'</span><strong>'+esc([x.case_type,x.title].filter(Boolean).join(' · '))+'</strong><small>'+esc(x.case_number||'No case number')+'</small>'+(next?'<em>Next: '+esc(shortDate(next.start_at,true))+'</em>':'')+'</a>';}).join('')||'<p class="empty">No active cases.</p>';
+ await renderActivityGrid({clientId:id});
+}
+async function openEventCreate(caseRecord,type,done){
+ const label=type==='court'?'Court Date':'Appointment',d=modal('Add '+label),form=document.createElement('form'),draftId=crypto.randomUUID();
+ form.innerHTML='<div class="form-grid">'+field('Date','date','','date',true)+field('Time','time','','time',true)+'</div>'+field(type==='court'?'Hearing Type':'Appointment Type','title','','text',true)+area('Notes','comments')+'<p class="record-error" data-status></p><div class="actions"><button type="button" class="btn btn-secondary" data-cancel>Cancel</button><button class="btn btn-primary">Add '+label+'</button></div>';d.body.appendChild(form);form.querySelector('[data-cancel]').onclick=()=>d.close();
+ form.onsubmit=async ev=>{ev.preventDefault();try{const fd=new FormData(form);fd.set('type',type);await R.saveEvent(null,fd,{caseId:caseRecord.id,clientId:caseRecord.client_id,draftId});d.close(true);await done();}catch(e){feedback(form,errorText(e));}};
+}
+async function renderCompactEvents(c){
+ const events=await R.caseEvents(c.id),can=await R.can('calendar.manage');
+ for(const type of ['court','appointment']){const list=$('compact'+(type==='court'?'Court':'Appointment')+'List'),rows=events.filter(e=>(e.event_type==='legal_deadline'?'appointment':e.event_type)===type).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at));list.innerHTML=rows.slice(0,3).map(e=>'<article class="compact-event-row"><span class="event-date-tab">'+esc(new Date(e.start_at).toLocaleString('en-US',{month:'short'}).toUpperCase())+'<b>'+new Date(e.start_at).getDate()+'</b></span><span><strong>'+esc(e.title||type)+'</strong><small>'+esc(R.eventLabel(e))+'</small></span><em class="'+(e.completed_at?'completed':'upcoming')+'">'+(e.completed_at?'Completed':'Upcoming')+'</em></article>').join('')||'<p class="activity-empty">No '+type+' dates.</p>';const add=$('add'+(type==='court'?'Court':'Appointment'));add.hidden=!can;add.onclick=()=>openEventCreate(c,type,()=>renderCompactEvents(c));$('view'+(type==='court'?'Court':'Appointment')+'All').onclick=()=>{const d=modal(type==='court'?'Court Dates':'Appointments');dateHistory(d.body,c,type);};}
+}
+function caseStatusClass(s){return ['active','pending','closed'].includes(s)?s:'pending';}
+async function casePageV069(){
+ const id=new URLSearchParams(location.search).get('id'),content=document.querySelector('.content');
+ const {data:c,error}=await sb().from('cases').select('*').eq('id',id).eq('firm_id',firm()).single();if(error)throw error;
+ const {data:client,error:ce}=await sb().from('clients').select('*').eq('id',c.client_id).eq('firm_id',firm()).single();if(ce)throw ce;
+ content.classList.add('record-workspace');content.innerHTML='<div class="record-page-head"><div><h1><a class="case-client-link" href="client-profile.html?id='+encodeURIComponent(client.id)+'">'+esc(name(client))+'</a></h1><p>'+esc([c.case_type,c.title,c.case_number].filter(Boolean).join(' · '))+'</p></div><div class="case-head-actions"><select id="caseStatusHeader" class="status-select '+caseStatusClass(c.case_status)+'"><option value="active">● Active</option><option value="pending">● Pending</option><option value="closed">● Closed</option></select><div class="actions" id="caseActions"></div></div></div><div class="case-overview-grid"><div><form class="record-section-card" id="compactCaseForm"><header>CASE DETAILS</header><div class="record-form-body"><div class="form-grid-3">'+select('Case Type','caseType',['Criminal','Civil','Family','Injury','Other'],c.case_type)+field('Subtype','subCaseType',c.title)+field('Case Number','caseNumber',c.case_number)+'</div><div class="form-grid-3">'+field('Court','courtName',c.court_name)+field('Judge','judgeName',c.judge_name)+field('Opened','openedDate',c.opened_date,'date')+'</div></div></form><section class="record-section-card"><header>PARTIES</header><div class="record-form-body parties-grid"><label class="field">Client<a class="linked-field" href="client-profile.html?id='+encodeURIComponent(client.id)+'">'+esc(name(client))+'</a></label>'+field('Prosecutor','prosecutorName',c.prosecutor_name)+field('Opposing Counsel','opposingCounselName',c.opposing_counsel_name)+field('Co-Counsel','coCounselName',c.co_counsel_name)+'</div></section><section class="record-section-card"><header>BILLING</header><div class="record-form-body form-grid-3">'+select('Billing Type','billingType',[['flat_fee','Flat Fee'],['hourly','Hourly'],['hybrid','Hybrid'],['no_charge','No Charge / Pro Bono']],c.billing_type||'flat_fee')+field('Flat Fee / Base Fee','flatFeeAmount',c.flat_fee_amount??'','number')+field('Hourly Rate','caseHourlyRate',c.hourly_rate??'','number')+'</div></section><details class="record-additional"><summary>Additional Case Information</summary><div class="record-form-body">'+area('Case Notes','caseNotes',c.description)+'</div></details><p class="record-error" id="caseSaveStatus"></p></div><aside><section class="record-section-card"><header><span>COURT DATES</span><button type="button" id="addCourt">＋ ADD NEW</button></header><div id="compactCourtList"></div><button type="button" class="activity-view-all" id="viewCourtAll">VIEW ALL COURT DATES →</button></section><section class="record-section-card"><header><span>APPOINTMENTS</span><button type="button" id="addAppointment">＋ ADD NEW</button></header><div id="compactAppointmentList"></div><button type="button" class="activity-view-all" id="viewAppointmentAll">VIEW ALL APPOINTMENTS →</button></section></aside></div>'+activityGridHTML();
+ const form=$('compactCaseForm'),canEdit=await R.can('cases.edit'),status=$('caseStatusHeader');status.value=c.case_status;const report=async()=>snapshot(name(client)+' — '+(c.case_number||c.case_type),[{title:'Case Information',rows:[['Client',name(client)],['Case type',c.case_type],['Matter',c.title],['Status',c.case_status],['Court',c.court_name],['Judge',c.judge_name]]}]);toolbar($('caseActions'),report,{save:canEdit?()=>form.requestSubmit():null});await R.recordGear($('caseActions'),'case',c,()=>location.href='client-profile.html?id='+c.client_id);
+ const prosecutorField=content.querySelector('[name="prosecutorName"]').closest('.field'),syncCaseFields=()=>{prosecutorField.hidden=content.querySelector('[name="caseType"]').value!=='Criminal';};content.querySelector('[name="caseType"]').addEventListener('change',syncCaseFields);syncCaseFields();
+ if(!canEdit)content.querySelectorAll('input,select,textarea').forEach(x=>x.disabled=true);const save=async()=>{if(!canEdit)return;const fd=new FormData();content.querySelectorAll('[name]').forEach(x=>fd.set(x.name,x.value));const num=k=>val(fd,k)===''?null:Number(val(fd,k)),payload={case_type:val(fd,'caseType'),title:val(fd,'subCaseType')||val(fd,'caseType'),case_number:val(fd,'caseNumber')||null,case_status:status.value,court_name:val(fd,'courtName')||null,judge_name:val(fd,'judgeName')||null,opened_date:val(fd,'openedDate')||null,prosecutor_name:val(fd,'prosecutorName')||null,opposing_counsel_name:val(fd,'opposingCounselName')||null,co_counsel_name:val(fd,'coCounselName')||null,billing_type:val(fd,'billingType'),flat_fee_amount:num('flatFeeAmount'),hourly_rate:num('caseHourlyRate'),description:val(fd,'caseNotes')||null};const {data,error}=await sb().from('cases').update(payload).eq('id',id).eq('firm_id',firm()).select('id');if(error)throw error;if(data?.length!==1)throw new Error('Case was not updated.');Object.assign(c,payload);$('caseSaveStatus').textContent='Case saved.';status.className='status-select '+caseStatusClass(c.case_status);};form.onsubmit=ev=>{ev.preventDefault();save().catch(e=>$('caseSaveStatus').textContent=errorText(e));};status.onchange=()=>save().catch(e=>window.alert(errorText(e)));
+ await Promise.all([renderCompactEvents(c),renderActivityGrid({clientId:c.client_id,caseId:c.id})]);
+}
 function init(){
  document.querySelectorAll('a[href="add-client.html"]').forEach(a=>a.onclick=e=>{e.preventDefault();openIntake();});
  document.querySelectorAll('a[href="add-case.html"]').forEach(a=>a.onclick=e=>{e.preventDefault();openCaseChooser();});
@@ -459,6 +548,6 @@ function init(){
   topbar.appendChild(button);
  }
 }
-window.CaseGOWorkspace={openIntake,openCaseChooser,intakePage,clientPage,casePage,dashboard,billingPage,init,clientForm,readClient,persistClient,dateHistory,completeCourt,toolbar};
+window.CaseGOWorkspace={openIntake,openCaseChooser,intakePage,clientPage:clientPageV069,casePage:casePageV069,dashboard,billingPage,init,clientForm,readClient,persistClient,dateHistory,completeCourt,toolbar};
 R.openIntake=openIntake;
 })();
